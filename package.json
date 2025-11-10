@@ -1,104 +1,99 @@
-## Design and Implementation Plan for GitHub Copilot Task Master Project
-
-### Overview
-The GitHub Copilot Task Master project aims to create a Visual Studio Code (VS Code) extension that leverages AI assistance to help users define project requirements, manage tasks through GitHub repositories, and provide a user-friendly interface for tracking project progress and making adjustments. This plan outlines the design, architecture, and implementation steps necessary to achieve this goal.
-
-### Objectives
-1. **AI-Assisted Project Requirement Definition**: Create a wizard that guides users through defining project requirements with AI assistance.
-2. **Task Management**: Integrate with GitHub to manage tasks, issues, and pull requests.
-3. **Progress Tracking**: Provide a dashboard for users to track project progress and make adjustments as needed.
-4. **User-Friendly Interface**: Ensure the extension is intuitive and easy to use.
-
-### Architecture
-The architecture of the GitHub Copilot Task Master will consist of the following components:
-
-1. **VS Code Extension**: The main interface for users to interact with the Task Master.
-2. **AI Service**: An AI model (e.g., OpenAI's GPT) to assist in generating project requirements and task descriptions.
-3. **GitHub API Integration**: To manage tasks, issues, and pull requests directly from the extension.
-4. **Local Storage**: To save user preferences and project configurations.
-5. **Web Dashboard**: A web-based interface for advanced project tracking and management.
-
-### Design Components
-
-#### 1. User Interface (UI)
-- **Wizard Interface**: A step-by-step wizard that guides users through defining project requirements.
-  - **Step 1**: Project Overview (name, description, goals)
-  - **Step 2**: Define Features (using AI to suggest features based on user input)
-  - **Step 3**: Task Breakdown (AI-assisted task generation)
-  - **Step 4**: GitHub Integration (linking to a repository)
-  
-- **Dashboard**: A visual representation of project progress.
-  - **Task List**: Display tasks with statuses (To Do, In Progress, Done)
-  - **Progress Bar**: Visual indicator of overall project completion
-  - **Adjustments Section**: Allow users to modify tasks and priorities
-
-#### 2. AI Integration
-- **AI Model**: Use OpenAI's API to generate project requirements and task descriptions.
-- **Prompt Engineering**: Design prompts that effectively guide the AI to produce relevant outputs based on user input.
-
-#### 3. GitHub Integration
-- **Authentication**: Use OAuth to authenticate users with their GitHub accounts.
-- **API Endpoints**:
-  - Create and manage issues
-  - Update task statuses
-  - Fetch repository information
-
-### Implementation Plan
-
-#### Phase 1: Setup and Configuration
-1. **Initialize VS Code Extension**:
-   - Use Yeoman generator for VS Code extensions.
-   - Set up the project structure and dependencies.
-
-2. **Configure AI Service**:
-   - Set up OpenAI API access.
-   - Create utility functions for interacting with the AI model.
-
-3. **Set Up GitHub API Integration**:
-   - Implement OAuth authentication flow.
-   - Create functions to interact with GitHub's REST API.
-
-#### Phase 2: Develop Wizard Interface
-1. **Create Wizard UI**:
-   - Use VS Code's Webview API to create the wizard interface.
-   - Implement navigation between wizard steps.
-
-2. **Integrate AI Assistance**:
-   - Implement AI calls to generate project requirements and tasks.
-   - Display AI-generated suggestions in the wizard.
-
-#### Phase 3: Develop Dashboard
-1. **Create Dashboard UI**:
-   - Use Webview API to create a dashboard interface.
-   - Implement task list and progress tracking components.
-
-2. **Integrate GitHub Task Management**:
-   - Fetch tasks from GitHub and display them in the dashboard.
-   - Implement functionality to update task statuses and create new tasks.
-
-#### Phase 4: Testing and Refinement
-1. **Unit Testing**:
-   - Write unit tests for all components, including AI integration and GitHub API calls.
-
-2. **User Testing**:
-   - Conduct user testing sessions to gather feedback on the wizard and dashboard interfaces.
-   - Refine the UI/UX based on user feedback.
-
-#### Phase 5: Deployment and Documentation
-1. **Publish Extension**:
-   - Package the extension and publish it to the Visual Studio Code Marketplace.
-
-2. **Create Documentation**:
-   - Write user documentation detailing how to install and use the extension.
-   - Include examples of project setups and AI interactions.
-
-### Timeline
-- **Phase 1**: 2 weeks
-- **Phase 2**: 3 weeks
-- **Phase 3**: 3 weeks
-- **Phase 4**: 2 weeks
-- **Phase 5**: 1 week
-- **Total Duration**: Approximately 11 weeks
-
-### Conclusion
-The GitHub Copilot Task Master project aims to enhance project management through AI assistance and seamless integration with GitHub. By following this detailed design and implementation plan, we can create a powerful tool that simplifies task management and improves project tracking for developers.
+{
+  "name": "github-copilot-task-master",
+  "displayName": "GitHub Copilot Task Master",
+  "description": "AI-powered project management extension for VS Code with GitHub integration",
+  "version": "0.0.1",
+  "publisher": "databridge360",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": ["Other", "Programming Languages", "Snippets"],
+  "keywords": ["github", "copilot", "task", "project", "ai", "management"],
+  "activationEvents": [
+    "onCommand:taskMaster.showWizard",
+    "onCommand:taskMaster.showDashboard",
+    "onView:taskMaster.taskView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "taskMaster.showWizard",
+        "title": "Task Master: New Project Wizard"
+      },
+      {
+        "command": "taskMaster.showDashboard",
+        "title": "Task Master: Show Dashboard"
+      },
+      {
+        "command": "taskMaster.syncGitHub",
+        "title": "Task Master: Sync with GitHub"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "task-master",
+          "title": "Task Master",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "task-master": [
+        {
+          "id": "taskMaster.taskView",
+          "name": "Tasks",
+          "icon": "media/icon.svg"
+        },
+        {
+          "id": "taskMaster.progressView",
+          "name": "Progress"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GitHub Copilot Task Master",
+      "properties": {
+        "taskMaster.github.token": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token for API access"
+        },
+        "taskMaster.ai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for AI assistance"
+        },
+        "taskMaster.ai.model": {
+          "type": "string",
+          "default": "gpt-4",
+          "enum": ["gpt-4", "gpt-3.5-turbo"],
+          "description": "AI model to use for assistance"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.84.0",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0",
+    "@vscode/test-electron": "^2.3.8"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "openai": "^4.20.0",
+    "axios": "^1.6.2"
+  }
+}
