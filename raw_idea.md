@@ -1,0 +1,13 @@
+OKey ik heb een plan en ik wil dat je voor mij een het dusdanig uitwerkt en een desing plus implementatie plan maakt...
+
+Ik een een Github_Copilat_Task_Master maken en dat houd het volgende in:
+-Het heeft in VS code een wizzard om met behulp van ai een zeer conreet project te defineren met concrete reqeurements op een manier dat het doel mega goed beschreven is als promp voor AI (Github Copilit in VS Code (Agent of andere) ) om projecten in VS code mega goed te ondersteunen. (denk aan context, design keuzes, toegang tot de jusite documentatie, parate en recente kennis, maar het alle belangrijkijkste zeer goede folder en file / projectstucturen opzetten, en goed coderen, met goede funcies, juiste keuze van codeer talen en libriries..   
+-Het is de bedoeling dat die hele project definitie wordt opgelagen in het project en dat dit ook als ondersteuning blijft bieden gedurde het project voor AI (Github Copilit in VS Code (Agent of andere variant).  Het moet ook mogelijk zijn om doelen te veranderen met AI gedeurende het project of later en dat de hele uitwerking inventief mee veranderd..  
+
+Het is de bedoeling dat plannen worden opgeknipt in zeer contrete prompts voor ai, zo goed opgebouwd en in een format dat AI er subliem op reageerd....   Ik wil dat er gerbuik wordt gemaakt van Github Repos, Issues, Pullreqeust, om hele goede taken en promts in op te nemen en zo ook het project te beheren..  
+
+Ik wil dat er een goede UI is in Gitbub die inventief de voorgang weergeeft van het project, maar ook tools bied om inventief bij te sturen in het project, stuks dashboarden..  
+
+Ik heb heel veel bestanden gedeeld van https://github.com/eyaltoledano/claude-task-master.git dat is een project wat raakvlakken heeft echter wil ik nog een stuk verbeteren en intregeren in VS code met Github Copilet Agent Ask Edit of andere cofigure modus,  en met Github, om taken / issues, documentatie, versies bij te houden..  We kunnen dus eventueel in ons plan dingen overnemen als ze goed zijn of verbeteren..  Beschijf ook dan welke files je nodig hebt uit dit project om ons plan te realiseren.  
+
+Het is nu aan jou om hierboor een goede uitwerking te maken,, denk na naar mogelijkheden.  Gerbruik recente vs code en github en github copilet documentatie om evenntueel betere desing keuzes te maken..  Ik verwacht een vollegdig uigewerkt plan wat beschijft hoe het gehele proces verloopt van begin definieren van het project, de hulp van AI het opslitsen van taken, beheren, optimaliseren..   Hoe technisch het opgezet wordt etc..   
