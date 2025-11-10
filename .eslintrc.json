@@ -1,0 +1,13 @@
++---------------------+       +---------------------+
+|  VS Code Extension  | <--> |     Node.js Server  |
+|                     |       |                     |
+|  - UI Components    |       |  - API Endpoints    |
+|  - Task Management  |       |  - GitHub Integration|
+|  - Progress Tracking |       |  - AI Integration    |
++---------------------+       +---------------------+
+                                   |
+                                   |
+                                   v
+                            +-----------------+
+                            |   GitHub API    |
+                            +-----------------+
