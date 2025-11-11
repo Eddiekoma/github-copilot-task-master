@@ -1,134 +1,169 @@
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
 import { Task, ProjectRequirements } from '../types';
 
-export { Task, ProjectRequirements };  // Re-export from types
+export { Task, ProjectRequirements };
 
 export class AIService {
-    private openai: OpenAI | undefined;
+    constructor(private context: vscode.ExtensionContext) {}
 
-    constructor(private context: vscode.ExtensionContext) {
-        this.initializeOpenAI();
+    private async isCopilotAvailable(): Promise<boolean> {
+        const copilotExtension = vscode.extensions.getExtension('GitHub.copilot-chat');
+        return copilotExtension !== undefined && copilotExtension.isActive;
     }
 
-    private initializeOpenAI() {
-        const config = vscode.workspace.getConfiguration('taskMaster');
-        const apiKey = config.get<string>('ai.apiKey');
-        
-        if (apiKey) {
-            this.openai = new OpenAI({
-                apiKey: apiKey
-            });
-        }
-    }
-
-    async generateProjectRequirements(description: string): Promise<ProjectRequirements> {
-        if (!this.openai) {
-            throw new Error('OpenAI API not configured');
-        }
-
-        const prompt = `Based on the following project description, generate detailed project requirements:
-        
-        Description: ${description}
-        
-        Please provide:
-        1. A clear title
-        2. A detailed description
-        3. A list of key features
-        4. A list of tasks to implement
-        5. Recommended tech stack
-        6. Architecture overview
-        
-        Format the response as JSON.`;
-
-        try {
-            const response = await this.openai.chat.completions.create({
-                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-3.5-turbo',
-                messages: [
-                    { role: 'system', content: 'You are a helpful assistant that generates project requirements.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0.7,
-                // eslint-disable-next-line @typescript-eslint/naming-convention
-                max_tokens: 1000
-            });
-
-            const content = response.choices[0]?.message?.content;
-            if (content) {
-                return JSON.parse(content);
-            }
-        } catch (error) {
-            console.error('Error generating requirements:', error);
-            throw error;
-        }
-
-        // Return default requirements if generation fails
+    private validateAndNormalizeRequirements(data: any): ProjectRequirements {
         return {
-            title: 'New Project',
-            description: description,
-            features: [],
-            tasks: [],
-            techStack: [],
-            architecture: ''
+            title: data.title || 'Untitled Project',
+            description: data.description || '',
+            features: Array.isArray(data.features) ? data.features : [],
+            tasks: Array.isArray(data.tasks) ? data.tasks.map((t: any, index: number) => ({
+                id: t.id || `task_${Date.now()}_${index}`,
+                title: t.title || 'Untitled Task',
+                description: t.description || '',
+                status: t.status || 'todo',
+                priority: t.priority || 'medium',
+                estimatedHours: t.estimatedHours || undefined,
+                assignee: t.assignee,
+                dueDate: t.dueDate,
+                labels: t.labels || [],
+                acceptanceCriteria: t.acceptanceCriteria || [],
+                dependencies: t.dependencies || []
+            })) : [],
+            techStack: Array.isArray(data.techStack) ? data.techStack : [],
+            architecture: data.architecture || ''
         };
     }
 
-    async generateTasksFromRequirements(requirements: string): Promise<Task[]> {
-        if (!this.openai) {
-            throw new Error('OpenAI API not configured');
+    async generateProjectRequirements(description: string): Promise<ProjectRequirements> {
+        if (!await this.isCopilotAvailable()) {
+            vscode.window.showErrorMessage('GitHub Copilot Chat is not available. Please install and activate it.');
+            throw new Error('GitHub Copilot Chat not available');
         }
 
-        const prompt = `Based on the following project requirements, generate a list of tasks:
-        
-        Requirements: ${requirements}
-        
-        For each task, provide:
-        - title
-        - description
-        - priority (low, medium, high)
-        - estimatedHours
-        
-        Format the response as a JSON array of tasks.`;
+        const prompt = `Based on the following project description, generate detailed project requirements in JSON format:
+
+Description: ${description}
+
+Provide a JSON object with:
+- title: Clear project title
+- description: Detailed description  
+- features: Array of key features (strings)
+- tasks: Array with id, title, description, priority ("low"|"medium"|"high"), status ("todo"), estimatedHours
+- techStack: Array of technologies
+- architecture: Architecture overview
+
+Return ONLY valid JSON.`;
 
         try {
-            const response = await this.openai.chat.completions.create({
-                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-3.5-turbo',
-                messages: [
-                    { role: 'system', content: 'You are a helpful assistant that generates project tasks.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0.7,
-                // eslint-disable-next-line @typescript-eslint/naming-convention
-                max_tokens: 1500
-            });
-
-            const content = response.choices[0]?.message?.content;
-            if (content) {
-                const tasksData = JSON.parse(content);
-                return tasksData.map((task: {
-                    title: string;
-                    description: string;
-                    priority?: 'low' | 'medium' | 'high';
-                    estimatedHours?: number;
-                }, index: number) => ({
-                    id: `task_${Date.now()}_${index}`,
-                    title: task.title,
-                    description: task.description,
-                    status: 'todo' as const,
-                    priority: task.priority || 'medium',
-                    estimatedHours: task.estimatedHours
-                }));
+            const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4' });
+            if (models.length === 0) {
+                throw new Error('No Copilot models available');
             }
-        } catch (error) {
-            console.error('Error generating tasks:', error);
-        }
 
-        return [];
+            const response = await models[0].sendRequest(
+                [vscode.LanguageModelChatMessage.User(prompt)],
+                {},
+                new vscode.CancellationTokenSource().token
+            );
+            
+            let fullResponse = '';
+            for await (const fragment of response.text) {
+                fullResponse += fragment;
+            }
+
+            const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/) || fullResponse.match(/```\s*([\s\S]*?)\s*```/);
+            const jsonString = jsonMatch ? jsonMatch[1] : fullResponse;
+            const parsed = JSON.parse(jsonString.trim());
+            
+            return this.validateAndNormalizeRequirements(parsed);
+        } catch (error) {
+            console.error('Error generating requirements:', error);
+            vscode.window.showErrorMessage(`Failed to generate requirements: ${error}`);
+            return {
+                title: 'New Project',
+                description: description,
+                features: [],
+                tasks: [],
+                techStack: [],
+                architecture: ''
+            };
+        }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async generateSuggestions(_context: string): Promise<string[]> {
-        // Placeholder for generating suggestions
-        return [];
+    async generateTasksFromRequirements(requirements: string): Promise<Task[]> {
+        if (!await this.isCopilotAvailable()) {
+            return [];
+        }
+
+        const prompt = `Generate tasks in JSON array format for: ${requirements}
+
+Each task needs: id, title, description, priority ("low"|"medium"|"high"), status ("todo"), estimatedHours.
+Return ONLY JSON array.`;
+
+        try {
+            const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4' });
+            if (models.length === 0) {
+                return [];
+            }
+
+            const response = await models[0].sendRequest(
+                [vscode.LanguageModelChatMessage.User(prompt)],
+                {},
+                new vscode.CancellationTokenSource().token
+            );
+            
+            let fullResponse = '';
+            for await (const fragment of response.text) {
+                fullResponse += fragment;
+            }
+
+            const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/) || fullResponse.match(/```\s*([\s\S]*?)\s*```/);
+            const jsonString = jsonMatch ? jsonMatch[1] : fullResponse;
+            const tasksData = JSON.parse(jsonString.trim());
+
+            return Array.isArray(tasksData) ? tasksData.map((task: any, index: number) => ({
+                id: task.id || `task_${Date.now()}_${index}`,
+                title: task.title,
+                description: task.description,
+                status: 'todo' as const,
+                priority: task.priority || 'medium',
+                estimatedHours: task.estimatedHours,
+                assignee: undefined,
+                dueDate: undefined,
+                labels: []
+            })) : [];
+        } catch (error) {
+            console.error('Error generating tasks:', error);
+            return [];
+        }
+    }
+
+    async optimizeCode(code: string, language: string): Promise<string> {
+        if (!await this.isCopilotAvailable()) {
+            return code;
+        }
+
+        try {
+            const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4' });
+            if (models.length === 0) {
+                return code;
+            }
+
+            const response = await models[0].sendRequest(
+                [vscode.LanguageModelChatMessage.User(`Optimize this ${language} code:\n\n${code}`)],
+                {},
+                new vscode.CancellationTokenSource().token
+            );
+            
+            let fullResponse = '';
+            for await (const fragment of response.text) {
+                fullResponse += fragment;
+            }
+
+            return fullResponse || code;
+        } catch (error) {
+            console.error('Error optimizing code:', error);
+            return code;
+        }
     }
 }

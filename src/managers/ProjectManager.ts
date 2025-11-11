@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { GitHubService } from '../services/GitHubService';
-import { AIService } from '../services/AIService';
+import { AIService, ProjectRequirements } from '../services/AIService';
 import { Project, Task, ProjectData } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -58,6 +58,10 @@ export class ProjectManager {
         }
 
         return project;
+    }
+
+    async generateRequirementsFromIdea(projectIdea: string): Promise<ProjectRequirements> {
+        return await this.aiService.generateProjectRequirements(projectIdea);
     }
 
     async generateTasks(requirements: string): Promise<Task[]> {

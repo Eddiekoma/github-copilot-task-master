@@ -7,8 +7,19 @@
   "engines": {
     "vscode": "^1.84.0"
   },
-  "categories": ["Other", "Programming Languages", "Snippets"],
-  "keywords": ["github", "copilot", "task", "project", "ai", "management"],
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "github",
+    "copilot",
+    "task",
+    "project",
+    "ai",
+    "management"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -54,17 +65,6 @@
           "type": "string",
           "default": "",
           "description": "GitHub Personal Access Token for API access"
-        },
-        "taskMaster.ai.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "OpenAI API Key for AI assistance"
-        },
-        "taskMaster.ai.model": {
-          "type": "string",
-          "default": "gpt-4",
-          "enum": ["gpt-4", "gpt-3.5-turbo"],
-          "description": "AI model to use for assistance"
         }
       }
     }
@@ -78,17 +78,16 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.84.0",
     "@types/node": "20.x",
+    "@types/vscode": "^1.84.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-electron": "^2.3.8",
     "eslint": "^8.54.0",
-    "typescript": "^5.3.0",
-    "@vscode/test-electron": "^2.3.8"
+    "typescript": "^5.3.0"
   },
   "dependencies": {
     "@octokit/rest": "^20.0.2",
-    "openai": "^4.20.0",
     "axios": "^1.6.2"
   }
 }

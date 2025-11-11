@@ -50,8 +50,21 @@ export class WizardPanel {
         this._panel.webview.onDidReceiveMessage(
             async message => {
                 switch (message.command) {
-                    case 'createProject':
-                        const project = await this.projectManager.createProject(message.projectIdea);
+                    case 'generateRequirements': {
+                        try {
+                            vscode.window.showInformationMessage('Generating project requirements with GitHub Copilot...');
+                            const requirements = await this.projectManager.generateRequirementsFromIdea(message.projectIdea);
+                            this._panel.webview.postMessage({
+                                command: 'requirementsGenerated',
+                                requirements
+                            });
+                        } catch (error) {
+                            vscode.window.showErrorMessage(`Failed to generate requirements: ${error}`);
+                        }
+                        break;
+                    }
+                    case 'createProject': {
+                        const project = await this.projectManager.createProject(message.projectData);
                         if (project) {
                             this._panel.webview.postMessage({
                                 command: 'projectCreated',
@@ -59,6 +72,7 @@ export class WizardPanel {
                             });
                         }
                         break;
+                    }
                 }
             },
             null,
