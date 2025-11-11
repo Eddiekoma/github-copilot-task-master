@@ -9,7 +9,6 @@
   },
   "categories": ["Other", "Programming Languages", "Snippets"],
   "keywords": ["github", "copilot", "task", "project", "ai", "management"],
-  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
