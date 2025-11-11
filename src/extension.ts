@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     const showWizard = vscode.commands.registerCommand('taskMaster.showWizard', () => {
-        WizardPanel.createOrShow(context.extensionUri, projectManager);
+        WizardPanel.createOrShow(context.extensionUri, projectManager, context, aiService, githubService);
     });
 
     const showDashboard = vscode.commands.registerCommand('taskMaster.showDashboard', () => {

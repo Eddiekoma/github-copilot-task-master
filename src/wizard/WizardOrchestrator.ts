@@ -34,7 +34,7 @@ export class WizardOrchestrator {
     /**
      * Advance to the next step after saving current step data
      */
-    async nextStep(data: any): Promise<void> {
+    async nextStep(data: unknown): Promise<void> {
         console.log(`[WizardOrchestrator] Moving from step ${this.currentStep} to next step`);
         
         // Save current step data
@@ -79,7 +79,7 @@ export class WizardOrchestrator {
     /**
      * Save data collected in a specific step
      */
-    private async saveStepData(step: number, data: any): Promise<void> {
+    private async saveStepData(step: number, data: unknown): Promise<void> {
         console.log(`[WizardOrchestrator] Saving data for step ${step}`);
         
         switch (step) {
@@ -109,7 +109,7 @@ export class WizardOrchestrator {
     /**
      * Get data for a specific step (for display purposes)
      */
-    private getStepData(step: number): any {
+    private getStepData(step: number): unknown {
         switch (step) {
             case 1:
                 return this.wizardData.purpose || {};

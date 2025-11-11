@@ -1,5 +1,5 @@
 import { AIService } from '../../services/AIService';
-import { Architecture, Feature, TechnicalContext, Component, DataFlow, APIDesign, APIEndpoint } from '../../types/projectModels';
+import { Architecture, Feature, TechnicalContext, Component, ComponentInterface, DataFlow, APIDesign, APIEndpoint } from '../../types/projectModels';
 
 /**
  * Step 4: Architecture & Design
@@ -83,7 +83,7 @@ Return ONLY valid JSON.`;
             const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/) || jsonString.match(/\{[\s\S]*\}/);
             
             if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0].replace(/```json|```/g, '').trim());
+                const parsed = JSON.parse(jsonMatch[0].replace(/```json|```/g, '').trim()) as { style: string; [key: string]: unknown };
                 return this.normalizeArchitecture(parsed);
             }
             
@@ -98,7 +98,7 @@ Return ONLY valid JSON.`;
     /**
      * Normalize and validate architecture data
      */
-    private normalizeArchitecture(data: any): Architecture {
+    private normalizeArchitecture(data: { style?: string; components?: unknown[]; dataFlow?: unknown[]; apiDesign?: unknown; databaseSchema?: string; securityArchitecture?: string; deploymentStrategy?: string; scalabilityPlan?: string }): Architecture {
         return {
             style: this.validateArchitectureStyle(data.style),
             components: this.validateComponents(data.components || []),
@@ -123,14 +123,16 @@ Return ONLY valid JSON.`;
     /**
      * Validate components array
      */
-    private validateComponents(components: any[]): Component[] {
-        return components.filter(c => c.name && c.type).map(c => ({
-            name: c.name,
+    private validateComponents(components: unknown[]): Component[] {
+        return components.filter((c): c is Record<string, unknown> => 
+            typeof c === 'object' && c !== null && 'name' in c && 'type' in c
+        ).map(c => ({
+            name: String(c.name),
             type: this.validateComponentType(c.type),
-            technologies: Array.isArray(c.technologies) ? c.technologies : [],
-            responsibilities: Array.isArray(c.responsibilities) ? c.responsibilities : [],
-            interfaces: Array.isArray(c.interfaces) ? c.interfaces : [],
-            dependencies: Array.isArray(c.dependencies) ? c.dependencies : []
+            technologies: Array.isArray(c.technologies) ? c.technologies as string[] : [],
+            responsibilities: Array.isArray(c.responsibilities) ? c.responsibilities as string[] : [],
+            interfaces: Array.isArray(c.interfaces) ? c.interfaces as ComponentInterface[] : [],
+            dependencies: Array.isArray(c.dependencies) ? c.dependencies as string[] : []
         }));
     }
 

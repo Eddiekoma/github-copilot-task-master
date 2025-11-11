@@ -47,19 +47,19 @@ export class ProjectFileService {
         
         try {
             const content = await fs.readFile(filePath, 'utf8');
-            const projectFile = JSON.parse(content);
+            const projectFile = JSON.parse(content) as ProjectFile;
             
             // Parse dates
             projectFile.createdAt = new Date(projectFile.createdAt);
             projectFile.updatedAt = new Date(projectFile.updatedAt);
             if (projectFile.tasks) {
-                projectFile.tasks.forEach((task: any) => {
+                projectFile.tasks.forEach((task) => {
                     task.createdAt = new Date(task.createdAt);
                     task.updatedAt = new Date(task.updatedAt);
                 });
             }
             if (projectFile.aiContext?.keyDecisions) {
-                projectFile.aiContext.keyDecisions.forEach((decision: any) => {
+                projectFile.aiContext.keyDecisions.forEach((decision) => {
                     decision.timestamp = new Date(decision.timestamp);
                 });
             }
