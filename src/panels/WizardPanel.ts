@@ -132,6 +132,39 @@ export class WizardPanel {
                         <textarea id="projectIdea" rows="10" placeholder="Describe your project idea in detail..."></textarea>
                         <button id="generateBtn">Generate Requirements with AI</button>
                     </div>
+                    <div class="step" id="step2" style="display: none;">
+                        <h2>Step 2: Review Generated Requirements</h2>
+                        <div id="requirementsContainer">
+                            <div class="requirement-section">
+                                <h3>📋 Project Title</h3>
+                                <p id="projectTitle"></p>
+                            </div>
+                            <div class="requirement-section">
+                                <h3>📝 Description</h3>
+                                <p id="projectDescription"></p>
+                            </div>
+                            <div class="requirement-section">
+                                <h3>✨ Features</h3>
+                                <ul id="featuresList"></ul>
+                            </div>
+                            <div class="requirement-section">
+                                <h3>📦 Tech Stack</h3>
+                                <div id="techStackList"></div>
+                            </div>
+                            <div class="requirement-section">
+                                <h3>🏗️ Architecture</h3>
+                                <p id="architectureDescription"></p>
+                            </div>
+                            <div class="requirement-section">
+                                <h3>✅ Tasks</h3>
+                                <div id="tasksList"></div>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button id="backBtn">← Back</button>
+                            <button id="createProjectBtn" class="primary">Create Project</button>
+                        </div>
+                    </div>
                 </div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
