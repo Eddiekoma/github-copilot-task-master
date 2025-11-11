@@ -52,14 +52,22 @@ export class WizardPanel {
                 switch (message.command) {
                     case 'generateRequirements': {
                         try {
+                            console.log('[WizardPanel] Received generateRequirements command');
                             vscode.window.showInformationMessage('Generating project requirements with GitHub Copilot...');
                             const requirements = await this.projectManager.generateRequirementsFromIdea(message.projectIdea);
+                            console.log('[WizardPanel] Requirements generated:', requirements);
                             this._panel.webview.postMessage({
                                 command: 'requirementsGenerated',
                                 requirements
                             });
+                            vscode.window.showInformationMessage('Requirements generated! Check the wizard for results.');
                         } catch (error) {
-                            vscode.window.showErrorMessage(`Failed to generate requirements: ${error}`);
+                            console.error('[WizardPanel] Error generating requirements:', error);
+                            vscode.window.showErrorMessage(`Failed to generate requirements: ${error instanceof Error ? error.message : String(error)}`);
+                            this._panel.webview.postMessage({
+                                command: 'requirementsError',
+                                error: error instanceof Error ? error.message : String(error)
+                            });
                         }
                         break;
                     }

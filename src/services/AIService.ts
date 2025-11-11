@@ -35,10 +35,16 @@ export class AIService {
     }
 
     async generateProjectRequirements(description: string): Promise<ProjectRequirements> {
+        console.log('[AIService] Starting generateProjectRequirements for:', description);
+        
         if (!await this.isCopilotAvailable()) {
-            vscode.window.showErrorMessage('GitHub Copilot Chat is not available. Please install and activate it.');
+            const errorMsg = 'GitHub Copilot Chat is not available. Please install and activate the GitHub Copilot Chat extension.';
+            console.error('[AIService]', errorMsg);
+            vscode.window.showErrorMessage(errorMsg);
             throw new Error('GitHub Copilot Chat not available');
         }
+
+        console.log('[AIService] Copilot Chat is available');
 
         const prompt = `Based on the following project description, generate detailed project requirements in JSON format:
 
@@ -55,30 +61,41 @@ Provide a JSON object with:
 Return ONLY valid JSON.`;
 
         try {
+            console.log('[AIService] Selecting Copilot models...');
             const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4' });
+            console.log('[AIService] Found models:', models.length);
+            
             if (models.length === 0) {
-                throw new Error('No Copilot models available');
+                throw new Error('No Copilot models available. Make sure GitHub Copilot is properly configured.');
             }
 
+            console.log('[AIService] Sending request to Copilot...');
             const response = await models[0].sendRequest(
                 [vscode.LanguageModelChatMessage.User(prompt)],
                 {},
                 new vscode.CancellationTokenSource().token
             );
             
+            console.log('[AIService] Receiving response...');
             let fullResponse = '';
             for await (const fragment of response.text) {
                 fullResponse += fragment;
             }
 
+            console.log('[AIService] Full response received:', fullResponse.substring(0, 200) + '...');
+
             const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/) || fullResponse.match(/```\s*([\s\S]*?)\s*```/);
             const jsonString = jsonMatch ? jsonMatch[1] : fullResponse;
+            console.log('[AIService] Parsing JSON...');
             const parsed = JSON.parse(jsonString.trim());
             
+            console.log('[AIService] Successfully generated requirements');
+            vscode.window.showInformationMessage('Project requirements generated successfully!');
             return this.validateAndNormalizeRequirements(parsed);
         } catch (error) {
-            console.error('Error generating requirements:', error);
-            vscode.window.showErrorMessage(`Failed to generate requirements: ${error}`);
+            console.error('[AIService] Error generating requirements:', error);
+            const errorMsg = `Failed to generate requirements: ${error instanceof Error ? error.message : String(error)}`;
+            vscode.window.showErrorMessage(errorMsg);
             return {
                 title: 'New Project',
                 description: description,
