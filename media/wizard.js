@@ -84,7 +84,10 @@
             techStackList.innerHTML = '<span class="tech-badge">Not specified</span>';
         }
 
-        document.getElementById('architectureDescription').textContent = req.architecture || 'No architecture description';
+        const architectureText = typeof req.architecture === 'string' 
+            ? req.architecture 
+            : (req.architecture?.description || JSON.stringify(req.architecture, null, 2) || 'No architecture description');
+        document.getElementById('architectureDescription').textContent = architectureText;
 
         const tasksList = document.getElementById('tasksList');
         tasksList.innerHTML = '';

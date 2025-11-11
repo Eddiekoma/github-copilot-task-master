@@ -1,0 +1,10 @@
+# Webview JavaScript files use browser globals
+media/**/*.js
+webview/**/*.js
+
+# Output directory
+out/
+dist/
+
+# Dependencies
+node_modules/
