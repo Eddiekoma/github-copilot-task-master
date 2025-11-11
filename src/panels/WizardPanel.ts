@@ -1,14 +1,24 @@
 import * as vscode from 'vscode';
 import { ProjectManager } from '../managers/ProjectManager';
 import { getNonce } from '../utils/getNonce';
+import { WizardController } from '../wizard/WizardController';
+import { AIService } from '../services/AIService';
+import { GitHubService } from '../services/GitHubService';
 
 export class WizardPanel {
     public static currentPanel: WizardPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
+    private wizardController: WizardController | undefined;
 
-    public static createOrShow(extensionUri: vscode.Uri, projectManager: ProjectManager) {
+    public static createOrShow(
+        extensionUri: vscode.Uri, 
+        projectManager: ProjectManager,
+        context: vscode.ExtensionContext,
+        aiService: AIService,
+        githubService: GitHubService
+    ) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -32,16 +42,34 @@ export class WizardPanel {
             }
         );
 
-        WizardPanel.currentPanel = new WizardPanel(panel, extensionUri, projectManager);
+        WizardPanel.currentPanel = new WizardPanel(
+            panel, 
+            extensionUri, 
+            projectManager, 
+            context, 
+            aiService, 
+            githubService
+        );
     }
 
     private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        private projectManager: ProjectManager
+        private projectManager: ProjectManager,
+        private context: vscode.ExtensionContext,
+        private aiService: AIService,
+        private githubService: GitHubService
     ) {
         this._panel = panel;
         this._extensionUri = extensionUri;
+
+        // Initialize wizard controller
+        this.wizardController = new WizardController(
+            this.context,
+            this._panel.webview,
+            this.aiService,
+            this.githubService
+        );
 
         this._update();
 
@@ -49,38 +77,39 @@ export class WizardPanel {
 
         this._panel.webview.onDidReceiveMessage(
             async message => {
-                switch (message.command) {
-                    case 'generateRequirements': {
-                        try {
-                            console.log('[WizardPanel] Received generateRequirements command');
-                            vscode.window.showInformationMessage('Generating project requirements with GitHub Copilot...');
-                            const requirements = await this.projectManager.generateRequirementsFromIdea(message.projectIdea);
-                            console.log('[WizardPanel] Requirements generated:', requirements);
-                            this._panel.webview.postMessage({
-                                command: 'requirementsGenerated',
-                                requirements
-                            });
-                            vscode.window.showInformationMessage('Requirements generated! Check the wizard for results.');
-                        } catch (error) {
-                            console.error('[WizardPanel] Error generating requirements:', error);
-                            vscode.window.showErrorMessage(`Failed to generate requirements: ${error instanceof Error ? error.message : String(error)}`);
-                            this._panel.webview.postMessage({
-                                command: 'requirementsError',
-                                error: error instanceof Error ? error.message : String(error)
-                            });
-                        }
-                        break;
+                // Handle both old-style messages and new wizard controller messages
+                if (message.command === 'generateRequirements') {
+                    // Legacy support - convert to new wizard flow
+                    try {
+                        console.log('[WizardPanel] Received legacy generateRequirements command');
+                        vscode.window.showInformationMessage('Generating project requirements with GitHub Copilot...');
+                        const requirements = await this.projectManager.generateRequirementsFromIdea(message.projectIdea);
+                        console.log('[WizardPanel] Requirements generated:', requirements);
+                        this._panel.webview.postMessage({
+                            command: 'requirementsGenerated',
+                            requirements
+                        });
+                        vscode.window.showInformationMessage('Requirements generated! Check the wizard for results.');
+                    } catch (error) {
+                        console.error('[WizardPanel] Error generating requirements:', error);
+                        vscode.window.showErrorMessage(`Failed to generate requirements: ${error instanceof Error ? error.message : String(error)}`);
+                        this._panel.webview.postMessage({
+                            command: 'requirementsError',
+                            error: error instanceof Error ? error.message : String(error)
+                        });
                     }
-                    case 'createProject': {
-                        const project = await this.projectManager.createProject(message.projectData);
-                        if (project) {
-                            this._panel.webview.postMessage({
-                                command: 'projectCreated',
-                                project
-                            });
-                        }
-                        break;
+                } else if (message.command === 'createProject') {
+                    // Legacy support
+                    const project = await this.projectManager.createProject(message.projectData);
+                    if (project) {
+                        this._panel.webview.postMessage({
+                            command: 'projectCreated',
+                            project
+                        });
                     }
+                } else if (this.wizardController) {
+                    // New wizard controller messages
+                    await this.wizardController.handleMessage(message);
                 }
             },
             null,

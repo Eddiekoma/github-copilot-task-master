@@ -1,15 +1,25 @@
 import * as vscode from 'vscode';
 import { WizardPanel } from '../panels/WizardPanel';
 import { ProjectManager } from '../managers/ProjectManager';
+import { AIService } from '../services/AIService';
+import { GitHubService } from '../services/GitHubService';
 
 export class WizardCommands {
     constructor(
         private context: vscode.ExtensionContext,
-        private projectManager: ProjectManager
+        private projectManager: ProjectManager,
+        private aiService: AIService,
+        private githubService: GitHubService
     ) {}
 
     showWizard() {
-        WizardPanel.createOrShow(this.context.extensionUri, this.projectManager);
+        WizardPanel.createOrShow(
+            this.context.extensionUri, 
+            this.projectManager, 
+            this.context, 
+            this.aiService, 
+            this.githubService
+        );
     }
 
     async quickStart() {
