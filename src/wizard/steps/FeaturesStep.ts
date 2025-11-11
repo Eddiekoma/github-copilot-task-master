@@ -1,5 +1,25 @@
-import { Feature, ProjectPurpose, TechnicalContext } from '../../types/projectModels';
+import { Feature, ProjectPurpose, TechnicalContext, UserStory, AcceptanceCriterion, EdgeCase } from '../../types/projectModels';
 import { AIService } from '../../services/AIService';
+
+// Helper interfaces for parsing
+interface ParsedUserStory {
+  asA?: string;
+  iWant?: string;
+  soThat?: string;
+}
+
+interface ParsedAcceptanceCriterion {
+  given?: string;
+  when?: string;
+  then?: string;
+  testable?: boolean;
+}
+
+interface ParsedEdgeCase {
+  scenario?: string;
+  expectedBehavior?: string;
+  priority?: string;
+}
 
 export class FeaturesStep {
   constructor(private aiService: AIService) {}
@@ -51,31 +71,43 @@ Return as JSON array of features.`;
     }));
   }
 
-  private validateUserStories(stories: any): any[] {
+  private validateUserStories(stories: unknown): UserStory[] {
     if (!Array.isArray(stories)) {return [];}
-    return stories.map(s => ({
-      asA: s.asA || 'user',
-      iWant: s.iWant || 'to perform an action',
-      soThat: s.soThat || 'I can achieve a goal'
-    }));
+    return stories.map((s: unknown) => {
+      const story = s as ParsedUserStory;
+      return {
+        asA: story.asA || 'user',
+        iWant: story.iWant || 'to perform an action',
+        soThat: story.soThat || 'I can achieve a goal'
+      };
+    });
   }
 
-  private validateAcceptanceCriteria(criteria: any): any[] {
+  private validateAcceptanceCriteria(criteria: unknown): AcceptanceCriterion[] {
     if (!Array.isArray(criteria)) {return [];}
-    return criteria.map(c => ({
-      given: c.given || '',
-      when: c.when || '',
-      then: c.then || '',
-      testable: c.testable !== false
-    }));
+    return criteria.map((c: unknown) => {
+      const crit = c as ParsedAcceptanceCriterion;
+      return {
+        given: crit.given || '',
+        when: crit.when || '',
+        then: crit.then || '',
+        testable: crit.testable !== false
+      };
+    });
   }
 
-  private validateEdgeCases(cases: any): any[] {
+  private validateEdgeCases(cases: unknown): EdgeCase[] {
     if (!Array.isArray(cases)) {return [];}
-    return cases.map(c => ({
-      scenario: c.scenario || '',
-      expectedBehavior: c.expectedBehavior || '',
-      priority: c.priority || 'medium'
-    }));
+    return cases.map((c: unknown) => {
+      const edgeCase = c as ParsedEdgeCase;
+      const priority = edgeCase.priority;
+      return {
+        scenario: edgeCase.scenario || '',
+        expectedBehavior: edgeCase.expectedBehavior || '',
+        priority: (priority === 'high' || priority === 'medium' || priority === 'low') 
+          ? priority 
+          : 'medium'
+      };
+    });
   }
 }

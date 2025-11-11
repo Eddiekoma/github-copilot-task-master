@@ -17,7 +17,7 @@ export class Config {
         return config.get<T>(key);
     }
 
-    async update(key: string, value: any, target: vscode.ConfigurationTarget = vscode.ConfigurationTarget.Workspace): Promise<void> {
+    async update(key: string, value: unknown, target: vscode.ConfigurationTarget = vscode.ConfigurationTarget.Workspace): Promise<void> {
         const config = vscode.workspace.getConfiguration('taskMaster');
         await config.update(key, value, target);
     }

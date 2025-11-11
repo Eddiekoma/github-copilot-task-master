@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AIService } from '../services/AIService';
 import { ProjectRequirements, Task } from '../types';
 
@@ -155,9 +157,9 @@ Keep all existing good parts and improve based on the feedback.
     /**
      * Generates task templates based on project type
      */
-    async generateTaskTemplates(projectType: string): Promise<any[]> {
-        const templates: Record<string, any[]> = {
-            'web-app': [
+    async generateTaskTemplates(projectType: string): Promise<unknown[]> {
+        const templates: Record<string, unknown[]> = {
+            webApp: [
                 { title: 'Setup development environment', estimatedHours: 2, priority: 'high' },
                 { title: 'Design database schema', estimatedHours: 4, priority: 'high' },
                 { title: 'Implement authentication', estimatedHours: 8, priority: 'high' },
@@ -166,7 +168,7 @@ Keep all existing good parts and improve based on the feedback.
                 { title: 'Add unit tests', estimatedHours: 12, priority: 'medium' },
                 { title: 'Deploy to production', estimatedHours: 4, priority: 'low' }
             ],
-            'cli-tool': [
+            cliTool: [
                 { title: 'Define CLI interface', estimatedHours: 3, priority: 'high' },
                 { title: 'Implement core functionality', estimatedHours: 12, priority: 'high' },
                 { title: 'Add command parsing', estimatedHours: 4, priority: 'high' },
@@ -174,7 +176,7 @@ Keep all existing good parts and improve based on the feedback.
                 { title: 'Add configuration support', estimatedHours: 4, priority: 'medium' },
                 { title: 'Package for distribution', estimatedHours: 2, priority: 'low' }
             ],
-            'api': [
+            api: [
                 { title: 'Design API architecture', estimatedHours: 4, priority: 'high' },
                 { title: 'Setup server framework', estimatedHours: 2, priority: 'high' },
                 { title: 'Implement endpoints', estimatedHours: 16, priority: 'high' },
@@ -191,7 +193,13 @@ Keep all existing good parts and improve based on the feedback.
     /**
      * Analyzes code context to provide better AI suggestions
      */
-    async analyzeCodeContext(workspaceFolder?: string): Promise<any> {
+    async analyzeCodeContext(workspaceFolder?: string): Promise<{
+        hasGitRepo: boolean;
+        hasPackageJson: boolean;
+        hasTsConfig: boolean;
+        frameworks: string[];
+        suggestedImprovements: string[];
+    }> {
         const context = {
             hasGitRepo: false,
             hasPackageJson: false,
@@ -204,10 +212,6 @@ Keep all existing good parts and improve based on the feedback.
             return context;
         }
 
-        // Check for common project files
-        const fs = require('fs');
-        const path = require('path');
-
         try {
             // Check for git repository
             if (fs.existsSync(path.join(workspaceFolder, '.git'))) {
@@ -218,7 +222,10 @@ Keep all existing good parts and improve based on the feedback.
             const packageJsonPath = path.join(workspaceFolder, 'package.json');
             if (fs.existsSync(packageJsonPath)) {
                 context.hasPackageJson = true;
-                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+                    dependencies?: Record<string, string>;
+                    devDependencies?: Record<string, string>;
+                };
                 
                 // Detect frameworks
                 const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };

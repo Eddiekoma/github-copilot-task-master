@@ -9,7 +9,7 @@ export class Logger {
         }
     }
 
-    static log(message: string, ...args: any[]): void {
+    static log(message: string, ...args: unknown[]): void {
         const timestamp = new Date().toISOString();
         const formattedMessage = `[${timestamp}] ${message}`;
         
@@ -21,7 +21,7 @@ export class Logger {
         }
     }
 
-    static error(message: string, error?: any): void {
+    static error(message: string, error?: unknown): void {
         const timestamp = new Date().toISOString();
         const formattedMessage = `[${timestamp}] ERROR: ${message}`;
         
@@ -29,14 +29,15 @@ export class Logger {
         Logger.outputChannel?.appendLine(formattedMessage);
         
         if (error) {
-            Logger.outputChannel?.appendLine(error.toString());
-            if (error.stack) {
-                Logger.outputChannel?.appendLine(error.stack);
+            const err = error as Error;
+            Logger.outputChannel?.appendLine(err.toString());
+            if (err.stack) {
+                Logger.outputChannel?.appendLine(err.stack);
             }
         }
     }
 
-    static warn(message: string, ...args: any[]): void {
+    static warn(message: string, ...args: unknown[]): void {
         const timestamp = new Date().toISOString();
         const formattedMessage = `[${timestamp}] WARN: ${message}`;
         

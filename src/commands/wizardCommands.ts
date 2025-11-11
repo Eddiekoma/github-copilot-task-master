@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { WizardPanel } from '../panels/WizardPanel';
+import { MultiStepWizardPanel } from '../panels/MultiStepWizardPanel';
 import { ProjectManager } from '../managers/ProjectManager';
 
 export class WizardCommands {
@@ -9,6 +10,12 @@ export class WizardCommands {
     ) {}
 
     showWizard() {
+        // Use new 6-step wizard
+        MultiStepWizardPanel.createOrShow(this.context.extensionUri, this.context);
+    }
+    
+    showOldWizard() {
+        // Keep old wizard available for comparison
         WizardPanel.createOrShow(this.context.extensionUri, this.projectManager);
     }
 

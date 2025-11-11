@@ -71,7 +71,7 @@ export class WizardOrchestrator {
   /**
    * Move to the next step with data from current step
    */
-  async nextStep(data: any) {
+  async nextStep(data: unknown) {
     console.log(`Processing step ${this.currentStep} data:`, data);
     
     // Save current step data
@@ -93,6 +93,116 @@ export class WizardOrchestrator {
     if (this.currentStep > 1) {
       this.currentStep--;
       await this.showStep(this.currentStep);
+    }
+  }
+
+  /**
+   * Handle AI analysis for current step
+   */
+  async handleAIAnalysis(step: number, data: unknown) {
+    try {
+      console.log('[WizardOrchestrator] AI Analysis requested for step:', step);
+      console.log('[WizardOrchestrator] Data:', data);
+      
+      vscode.window.showInformationMessage('🤖 Analyzing with AI...');
+      
+      let enhancedData: unknown;
+      
+      switch (step) {
+        case 1: // Purpose
+          console.log('[WizardOrchestrator] Calling enhancePurpose...');
+          enhancedData = await this.purposeStep.enhancePurpose(data as Partial<ProjectPurpose>);
+          console.log('[WizardOrchestrator] Enhanced data received:', enhancedData);
+          break;
+        case 3: // Features
+          // For features step, just acknowledge for now
+          vscode.window.showInformationMessage('Feature analysis will be available in next update');
+          return;
+        default:
+          vscode.window.showWarningMessage('AI analysis not available for this step');
+          return;
+      }
+      
+      // Send enhanced data back to webview
+      console.log('[WizardOrchestrator] Sending result to webview');
+      this.webview.postMessage({
+        command: 'aiAnalysisResult',
+        step,
+        data: enhancedData
+      });
+      
+      vscode.window.showInformationMessage('✅ AI analysis complete!');
+    } catch (error) {
+      console.error('[WizardOrchestrator] AI analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[WizardOrchestrator] Error details:', errorMessage);
+      vscode.window.showErrorMessage(`Failed to analyze with AI: ${errorMessage}`);
+    }
+  }
+
+  async handleTechStackSuggestion(step: number, data: unknown) {
+    try {
+      console.log('[WizardOrchestrator] Tech Stack Suggestion requested');
+      console.log('[WizardOrchestrator] Data:', data);
+      
+      vscode.window.showInformationMessage('🤖 Analyzing technical requirements...');
+      
+      // Get purpose from wizard data
+      const purpose = this.wizardData.purpose;
+      
+      // Build AI prompt
+      const prompt = `Based on this project context, suggest a comprehensive technology stack:
+
+PROJECT PURPOSE:
+- Name: ${purpose?.name || 'Unknown'}
+- Problem: ${purpose?.problemStatement || 'Not specified'}
+- Goals: ${purpose?.primaryGoals?.join(', ') || 'Not specified'}
+
+TECHNICAL CONTEXT:
+${JSON.stringify(data, null, 2)}
+
+Please suggest:
+1. Backend Framework/Language
+2. Frontend Framework
+3. Database Technology
+4. Cloud Platform/Hosting
+5. Authentication/Security
+6. API Architecture
+7. Development Tools
+8. Testing Frameworks
+
+Format as JSON with sections: backend, frontend, database, cloud, security, api, devTools, testing.
+Each section should have: technology (string), reasoning (string)`;
+
+      console.log('[WizardOrchestrator] Calling AI with prompt');
+      
+      const suggestions = await this.aiService.generateStructuredResponse(
+        prompt,
+        {
+          backend: { technology: 'Node.js with Express', reasoning: 'Popular and flexible' },
+          frontend: { technology: 'React', reasoning: 'Component-based and widely adopted' },
+          database: { technology: 'PostgreSQL', reasoning: 'Robust relational database' },
+          cloud: { technology: 'AWS', reasoning: 'Comprehensive cloud services' },
+          security: { technology: 'OAuth 2.0', reasoning: 'Industry standard' },
+          api: { technology: 'REST', reasoning: 'Simple and widely supported' },
+          devTools: { technology: 'VS Code, Git, Docker', reasoning: 'Standard development workflow' },
+          testing: { technology: 'Jest', reasoning: 'Comprehensive testing framework' }
+        }
+      );
+      
+      console.log('[WizardOrchestrator] Suggestions received:', suggestions);
+      
+      // Send suggestions to webview
+      this.webview.postMessage({
+        command: 'techStackSuggestions',
+        suggestions
+      });
+      
+      vscode.window.showInformationMessage('✅ Tech stack suggestions ready!');
+    } catch (error) {
+      console.error('[WizardOrchestrator] Tech stack suggestion error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to suggest tech stack: ${errorMessage}`);
     }
   }
 
@@ -136,7 +246,7 @@ export class WizardOrchestrator {
   /**
    * Save data from a specific step
    */
-  private async saveStepData(step: number, data: any) {
+  private async saveStepData(step: number, data: unknown) {
     switch (step) {
       case 1: // Purpose
         this.wizardData.purpose = data as ProjectPurpose;
@@ -308,21 +418,37 @@ export class WizardOrchestrator {
         <h2>Step 2: Technical Context</h2>
         
         <div class="form-group">
-          <label>Platform</label>
+          <label>Platform / Environment</label>
           <select id="platform" required>
             <option value="">Select platform...</option>
-            <option value="web">Web Application</option>
-            <option value="mobile">Mobile App</option>
-            <option value="desktop">Desktop Application</option>
-            <option value="cloud">Cloud Service</option>
-            <option value="hybrid">Hybrid</option>
+            <optgroup label="Applications">
+              <option value="web">Web Application</option>
+              <option value="mobile">Mobile App (iOS/Android)</option>
+              <option value="desktop">Desktop Application</option>
+              <option value="pwa">Progressive Web App (PWA)</option>
+            </optgroup>
+            <optgroup label="Cloud Platforms">
+              <option value="salesforce">Salesforce (Lightning/Classic)</option>
+              <option value="azure">Microsoft Azure</option>
+              <option value="aws">Amazon Web Services (AWS)</option>
+              <option value="gcp">Google Cloud Platform (GCP)</option>
+              <option value="cloud-service">Other Cloud Service</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="vscode-extension">VS Code Extension</option>
+              <option value="api">REST/GraphQL API</option>
+              <option value="microservices">Microservices</option>
+              <option value="embedded">Embedded System</option>
+              <option value="hybrid">Hybrid (Multiple Platforms)</option>
+            </optgroup>
           </select>
         </div>
         
         <div class="form-group">
           <label>Existing Systems to Integrate</label>
           <div id="existingSystems">
-            <button id="addSystem" type="button">+ Add System</button>
+            <div id="systemsList"></div>
+            <button id="addSystem" type="button" style="margin-top: 10px; padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer;">+ Add System</button>
           </div>
         </div>
         
@@ -341,9 +467,9 @@ export class WizardOrchestrator {
           <textarea id="securityReqs" rows="3" placeholder="OAuth 2.0 authentication\nEnd-to-end encryption\nGDPR compliance"></textarea>
         </div>
         
-        <button id="suggestTechStack" class="ai-button">🤖 Suggest Tech Stack</button>
+        <button id="suggestTechStack" class="ai-button" style="margin: 10px 0; padding: 10px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold;">🤖 Suggest Tech Stack with AI</button>
         
-        <div id="aiSuggestions" class="ai-suggestions">
+        <div id="aiSuggestions" class="ai-suggestions" style="margin-top: 15px; padding: 15px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; display: none;">
           <!-- AI suggestions appear here -->
         </div>
         

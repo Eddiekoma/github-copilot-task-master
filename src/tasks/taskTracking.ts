@@ -129,7 +129,7 @@ export class TaskTracking {
                 : 0;
 
             switch (taskStatus) {
-                case 'completed':
+                case 'completed': {
                     completedTasks++;
                     completedHours += task.estimatedHours;
                     const completionTime = this.taskCompletionTimes.get(task.id);
@@ -138,6 +138,7 @@ export class TaskTracking {
                         completionCount++;
                     }
                     break;
+                }
                 case 'in-progress':
                     inProgressTasks++;
                     completedHours += hoursCompleted;

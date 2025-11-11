@@ -1,5 +1,26 @@
-import { AITask, Feature, Architecture, TechnicalContext, ProjectPurpose } from '../../types/projectModels';
+import { AITask, Feature, Architecture, TechnicalContext, ProjectPurpose, Constraint, TechnicalRequirement, AcceptanceCriterion, CodeExample, DocumentationLink } from '../../types/projectModels';
 import { AIService } from '../../services/AIService';
+
+// Helper interface for parsing AI responses
+interface ParsedTaskData {
+  title?: string;
+  goal?: string;
+  description?: string;
+  detailedDescription?: string;
+  constraints?: unknown;
+  technicalRequirements?: unknown;
+  designPatterns?: string[];
+  documentation?: unknown;
+  relevantFiles?: string[];
+  acceptanceCriteria?: unknown;
+  exampleCode?: unknown;
+  successCriteria?: string[];
+  potentialPitfalls?: string[];
+  testingStrategy?: string;
+  priority?: string;
+  estimatedHours?: number;
+  labels?: string[];
+}
 
 export class TaskBreakdownStep {
   constructor(private aiService: AIService) {}
@@ -61,7 +82,7 @@ Format each task as a COMPLETE PROMPT that a developer with AI assistance can fo
 Return as JSON array of tasks.`;
 
     try {
-      const tasksData = await this.aiService.generateStructuredResponse<any[]>(prompt, []);
+      const tasksData = await this.aiService.generateStructuredResponse<ParsedTaskData[]>(prompt, []);
       return tasksData.map((t, index) => this.enrichTask(t, feature, purpose, architecture, index));
     } catch (error) {
       console.error('Error breaking down feature:', error);
@@ -70,7 +91,7 @@ Return as JSON array of tasks.`;
   }
 
   private enrichTask(
-    taskData: any,
+    taskData: ParsedTaskData,
     feature: Feature,
     purpose: ProjectPurpose,
     architecture: Architecture,
@@ -101,7 +122,7 @@ Return as JSON array of tasks.`;
         testingStrategy: taskData.testingStrategy || ''
       },
       status: 'todo',
-      priority: taskData.priority || feature.priority,
+      priority: this.validatePriority(taskData.priority) || feature.priority,
       estimatedHours: taskData.estimatedHours || 4,
       labels: [feature.name, ...(taskData.labels || [])],
       createdAt: new Date(),
@@ -117,52 +138,78 @@ Return as JSON array of tasks.`;
     return [...new Set(techStack)];
   }
 
-  private validateConstraints(constraints: any): any[] {
+  private validatePriority(priority: string | undefined): 'critical' | 'high' | 'medium' | 'low' {
+    if (priority === 'critical' || priority === 'high' || priority === 'medium' || priority === 'low') {
+      return priority;
+    }
+    return 'medium';
+  }
+
+  private validateConstraints(constraints: unknown): Constraint[] {
     if (!Array.isArray(constraints)) {return [];}
-    return constraints.map(c => ({
-      type: c.type || 'technical',
-      description: c.description || ''
-    }));
+    return constraints.map((c: unknown) => {
+      const constraint = c as Partial<Constraint>;
+      const type = constraint.type;
+      return {
+        type: (type === 'performance' || type === 'security' || type === 'compliance' || 
+               type === 'technical' || type === 'business') ? type : 'technical',
+        description: constraint.description || ''
+      };
+    });
   }
 
-  private validateTechnicalRequirements(requirements: any): any[] {
+  private validateTechnicalRequirements(requirements: unknown): TechnicalRequirement[] {
     if (!Array.isArray(requirements)) {return [];}
-    return requirements.map(r => ({
-      name: r.name || '',
-      version: r.version,
-      reason: r.reason || '',
-      documentation: r.documentation,
-      type: r.type || 'library'
-    }));
+    return requirements.map((r: unknown) => {
+      const req = r as Partial<TechnicalRequirement>;
+      const reqType = req.type;
+      return {
+        name: req.name || '',
+        version: req.version,
+        reason: req.reason || '',
+        documentation: req.documentation,
+        type: (reqType === 'library' || reqType === 'framework' || reqType === 'tool' || reqType === 'service') 
+          ? reqType : 'library'
+      };
+    });
   }
 
-  private validateAcceptanceCriteria(criteria: any): any[] {
+  private validateAcceptanceCriteria(criteria: unknown): AcceptanceCriterion[] {
     if (!Array.isArray(criteria)) {return [];}
-    return criteria.map(c => ({
-      given: c.given || '',
-      when: c.when || '',
-      then: c.then || '',
-      testable: c.testable !== false
-    }));
+    return criteria.map((c: unknown) => {
+      const crit = c as Partial<AcceptanceCriterion>;
+      return {
+        given: crit.given || '',
+        when: crit.when || '',
+        then: crit.then || '',
+        testable: crit.testable !== false
+      };
+    });
   }
 
-  private validateCodeExamples(examples: any): any[] {
+  private validateCodeExamples(examples: unknown): CodeExample[] {
     if (!Array.isArray(examples)) {return [];}
-    return examples.map(e => ({
-      language: e.language || 'typescript',
-      code: e.code || '',
-      explanation: e.explanation || ''
-    }));
+    return examples.map((e: unknown) => {
+      const ex = e as Partial<CodeExample>;
+      return {
+        language: ex.language || 'typescript',
+        code: ex.code || '',
+        explanation: ex.explanation || ''
+      };
+    });
   }
 
-  private validateDocumentation(docs: any): any[] {
+  private validateDocumentation(docs: unknown): DocumentationLink[] {
     if (!Array.isArray(docs)) {return [];}
-    return docs.map(d => ({
-      title: d.title || '',
-      url: d.url || '',
-      section: d.section,
-      relevance: d.relevance || ''
-    }));
+    return docs.map((d: unknown) => {
+      const doc = d as Partial<DocumentationLink>;
+      return {
+        title: doc.title || '',
+        url: doc.url || '',
+        section: doc.section,
+        relevance: doc.relevance || ''
+      };
+    });
   }
 
   private async analyzeDependencies(tasks: AITask[]): Promise<AITask[]> {
@@ -174,10 +221,11 @@ Return which tasks depend on which (task A must be done before task B).
 Format as JSON: [{ taskId: "...", dependsOn: ["..."] }]`;
 
     try {
-      const dependencies = await this.aiService.generateStructuredResponse<any[]>(prompt, []);
+      interface DependencyMap { taskId?: string; dependsOn?: string[] }
+      const dependencies = await this.aiService.generateStructuredResponse<DependencyMap[]>(prompt, []);
       // Apply dependencies to tasks
       if (Array.isArray(dependencies)) {
-        dependencies.forEach((dep: any) => {
+        dependencies.forEach((dep: DependencyMap) => {
           const task = tasks.find(t => t.id === dep.taskId);
           if (task && dep.dependsOn) {
             task.aiPrompt.dependencies = dep.dependsOn.map((depId: string) => {

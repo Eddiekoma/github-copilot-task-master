@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ProjectRequirements } from '../services/AIService';
 import { AIAssistant } from './aiAssistant';
 import { RequirementsAnalyzer } from './requirementsAnalyzer';
@@ -91,7 +93,7 @@ export class ProjectWizard {
      * Runs the project wizard
      */
     async run(): Promise<WizardResult | null> {
-        const responses: Record<string, any> = {};
+        const responses: Record<string, unknown> = {};
 
         // Execute each step
         for (const step of this.steps) {
@@ -128,7 +130,7 @@ export class ProjectWizard {
             );
             
             if (showSuggestions === 'Yes') {
-                const suggestion = await vscode.window.showQuickPick(
+                await vscode.window.showQuickPick(
                     analyzed.suggestions,
                     {
                         placeHolder: 'AI Suggestions',
@@ -139,18 +141,18 @@ export class ProjectWizard {
         }
 
         return {
-            projectName: responses.projectName,
-            description: responses.description,
-            projectType: responses.projectType,
+            projectName: responses.projectName as string,
+            description: responses.description as string,
+            projectType: responses.projectType as string,
             requirements,
-            githubRepo: responses.githubIntegration ? responses.projectName : undefined
+            githubRepo: responses.githubIntegration ? responses.projectName as string : undefined
         };
     }
 
     /**
      * Executes a single wizard step
      */
-    private async executeStep(step: WizardStep): Promise<any> {
+    private async executeStep(step: WizardStep): Promise<string | boolean | undefined> {
         switch (step.inputType) {
             case 'text':
                 return this.getTextInput(step);
@@ -161,7 +163,7 @@ export class ProjectWizard {
             case 'confirm':
                 return this.getConfirmInput(step);
             default:
-                return null;
+                return undefined;
         }
     }
 
@@ -223,9 +225,6 @@ export class ProjectWizard {
      * Creates a project structure based on wizard results
      */
     async createProjectStructure(result: WizardResult, targetPath: string): Promise<void> {
-        const fs = require('fs').promises;
-        const path = require('path');
-
         // Define the project structure based on project type
         const structure = this.getProjectStructure(result.projectType);
 
@@ -234,11 +233,11 @@ export class ProjectWizard {
             const fullPath = path.join(targetPath, item.path);
             
             if (item.type === 'directory') {
-                await fs.mkdir(fullPath, { recursive: true });
+                await fs.promises.mkdir(fullPath, { recursive: true });
             } else if (item.type === 'file') {
                 const dirPath = path.dirname(fullPath);
-                await fs.mkdir(dirPath, { recursive: true });
-                await fs.writeFile(fullPath, item.content || '');
+                await fs.promises.mkdir(dirPath, { recursive: true });
+                await fs.promises.writeFile(fullPath, item.content || '');
             }
         }
 
@@ -294,9 +293,6 @@ export class ProjectWizard {
      * Creates configuration files for the project
      */
     private async createConfigFiles(result: WizardResult, targetPath: string): Promise<void> {
-        const fs = require('fs').promises;
-        const path = require('path');
-
         // Create package.json
         const packageJson = {
             name: result.projectName.toLowerCase().replace(/\s+/g, '-'),
@@ -320,7 +316,7 @@ export class ProjectWizard {
             dependencies: {}
         };
 
-        await fs.writeFile(
+        await fs.promises.writeFile(
             path.join(targetPath, 'package.json'),
             JSON.stringify(packageJson, null, 2)
         );
@@ -346,7 +342,7 @@ export class ProjectWizard {
             exclude: ['node_modules', 'dist', 'tests']
         };
 
-        await fs.writeFile(
+        await fs.promises.writeFile(
             path.join(targetPath, 'tsconfig.json'),
             JSON.stringify(tsConfig, null, 2)
         );
@@ -359,7 +355,7 @@ DATABASE_URL=
 API_KEY=
 `;
 
-        await fs.writeFile(
+        await fs.promises.writeFile(
             path.join(targetPath, '.env.example'),
             envExample
         );

@@ -3,6 +3,21 @@ import { Task, ProjectRequirements } from '../types';
 
 export { Task, ProjectRequirements };
 
+// Helper type for parsing unknown data
+interface ParsedTaskData {
+    id?: string;
+    title?: string;
+    description?: string;
+    status?: string;
+    priority?: string;
+    estimatedHours?: number;
+    assignee?: string;
+    dueDate?: string;
+    labels?: unknown[];
+    acceptanceCriteria?: unknown[];
+    dependencies?: unknown[];
+}
+
 export class AIService {
     constructor(private context: vscode.ExtensionContext) {}
 
@@ -11,26 +26,36 @@ export class AIService {
         return copilotExtension !== undefined && copilotExtension.isActive;
     }
 
-    private validateAndNormalizeRequirements(data: any): ProjectRequirements {
+    private validateAndNormalizeRequirements(data: unknown): ProjectRequirements {
+        const obj = data as Record<string, unknown>;
+        const tasks = Array.isArray(obj.tasks) ? obj.tasks : [];
+        
         return {
-            title: data.title || 'Untitled Project',
-            description: data.description || '',
-            features: Array.isArray(data.features) ? data.features : [],
-            tasks: Array.isArray(data.tasks) ? data.tasks.map((t: any, index: number) => ({
-                id: t.id || `task_${Date.now()}_${index}`,
-                title: t.title || 'Untitled Task',
-                description: t.description || '',
-                status: t.status || 'todo',
-                priority: t.priority || 'medium',
-                estimatedHours: t.estimatedHours || undefined,
-                assignee: t.assignee,
-                dueDate: t.dueDate,
-                labels: t.labels || [],
-                acceptanceCriteria: t.acceptanceCriteria || [],
-                dependencies: t.dependencies || []
-            })) : [],
-            techStack: Array.isArray(data.techStack) ? data.techStack : [],
-            architecture: data.architecture || ''
+            title: (obj.title as string) || 'Untitled Project',
+            description: (obj.description as string) || '',
+            features: Array.isArray(obj.features) ? obj.features as string[] : [],
+            tasks: tasks.map((t: unknown, index: number) => {
+                const task = t as ParsedTaskData;
+                return {
+                    id: task.id || `task_${Date.now()}_${index}`,
+                    title: task.title || 'Untitled Task',
+                    description: task.description || '',
+                    status: (task.status === 'todo' || task.status === 'in-progress' || task.status === 'completed') 
+                        ? task.status 
+                        : 'todo',
+                    priority: (task.priority === 'low' || task.priority === 'medium' || task.priority === 'high') 
+                        ? task.priority 
+                        : 'medium',
+                    estimatedHours: task.estimatedHours,
+                    assignee: task.assignee,
+                    dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+                    labels: Array.isArray(task.labels) ? task.labels as string[] : [],
+                    acceptanceCriteria: Array.isArray(task.acceptanceCriteria) ? task.acceptanceCriteria as string[] : [],
+                    dependencies: Array.isArray(task.dependencies) ? task.dependencies as string[] : []
+                };
+            }),
+            techStack: Array.isArray(obj.techStack) ? obj.techStack as string[] : [],
+            architecture: (obj.architecture as string) || ''
         };
     }
 
@@ -138,17 +163,22 @@ Return ONLY JSON array.`;
             const jsonString = jsonMatch ? jsonMatch[1] : fullResponse;
             const tasksData = JSON.parse(jsonString.trim());
 
-            return Array.isArray(tasksData) ? tasksData.map((task: any, index: number) => ({
-                id: task.id || `task_${Date.now()}_${index}`,
-                title: task.title,
-                description: task.description,
-                status: 'todo' as const,
-                priority: task.priority || 'medium',
-                estimatedHours: task.estimatedHours,
-                assignee: undefined,
-                dueDate: undefined,
-                labels: []
-            })) : [];
+            return Array.isArray(tasksData) ? tasksData.map((task: unknown, index: number) => {
+                const t = task as ParsedTaskData;
+                return {
+                    id: t.id || `task_${Date.now()}_${index}`,
+                    title: t.title || 'Untitled Task',
+                    description: t.description || '',
+                    status: 'todo' as const,
+                    priority: (t.priority === 'low' || t.priority === 'medium' || t.priority === 'high') 
+                        ? t.priority 
+                        : 'medium',
+                    estimatedHours: t.estimatedHours,
+                    assignee: undefined,
+                    dueDate: undefined,
+                    labels: []
+                };
+            }) : [];
         } catch (error) {
             console.error('Error generating tasks:', error);
             return [];

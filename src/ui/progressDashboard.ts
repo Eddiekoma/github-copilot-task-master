@@ -56,7 +56,7 @@ export class ProgressDashboard {
     /**
      * Updates a specific chart in the dashboard
      */
-    updateChart(chartType: string, data: any): void {
+    updateChart(chartType: string, data: unknown): void {
         this.panel.webview.postMessage({
             type: 'updateChart',
             chartType,
@@ -72,7 +72,7 @@ export class ProgressDashboard {
             return;
         }
 
-        let chartData: any;
+        let chartData: unknown;
         
         switch (chartType) {
             case 'status':

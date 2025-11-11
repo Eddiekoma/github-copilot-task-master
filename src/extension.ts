@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WizardPanel } from './panels/WizardPanel';
+import { MultiStepWizardPanel } from './panels/MultiStepWizardPanel';
 import { DashboardPanel } from './panels/DashboardPanel';
 import { TaskProvider } from './providers/TaskProvider';
 import { GitHubService } from './services/GitHubService';
@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     const showWizard = vscode.commands.registerCommand('taskMaster.showWizard', () => {
-        WizardPanel.createOrShow(context.extensionUri, projectManager, context);
+        MultiStepWizardPanel.createOrShow(context.extensionUri, context);
     });
 
     const showDashboard = vscode.commands.registerCommand('taskMaster.showDashboard', () => {

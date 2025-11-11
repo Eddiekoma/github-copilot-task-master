@@ -33,6 +33,13 @@ Each task becomes a **complete prompt** for AI consumption containing:
 - Testing strategy (unit, integration, e2e)
 - Success criteria
 
+### 🎨 Interactive AI Features
+
+- **Step 1 - AI Analyze & Enhance**: AI refines your project purpose, expands goals, and identifies stakeholders
+- **Step 2 - AI Tech Stack Suggestions**: Get comprehensive technology recommendations based on your requirements with detailed reasoning for each choice
+- **Step 3 - AI Feature Generation**: _(Coming soon)_ Generate user stories and acceptance criteria
+- **Step 5 - AI Task Breakdown**: _(Coming soon)_ Break features into implementation tasks automatically
+
 ### 📦 GitHub Integration
 
 - **AI-Ready Issues**: Creates GitHub issues with complete AI prompts in the body
@@ -107,19 +114,37 @@ Add to your VS Code settings (`settings.json`):
 #### Step 1: Project Purpose
 
 - Enter project name and problem statement
-- AI asks clarifying questions about:
-  - Target audience
-  - Success metrics
-  - Business requirements
-  - Key stakeholders
-- AI enhances your inputs with suggestions
+- Define target audience (comma-separated)
+- List primary goals (one per line)
+- Define success metrics (one per line)
+- **🤖 AI Analyze & Enhance**: Click to have AI:
+  - Refine and clarify your problem statement
+  - Expand and detail your target audience segments
+  - Generate 3-5 specific, measurable goals
+  - Create 3-5 concrete success metrics
+  - Identify business requirements and key stakeholders
+- AI-enhanced data automatically fills form fields
+- Review and edit before proceeding
 
 #### Step 2: Technical Context
 
-- Select platform (web/mobile/desktop/cloud)
-- Define constraints and requirements
-- AI suggests appropriate tech stack
-- Specify integrations and security needs
+- **Select platform** from comprehensive options:
+  - Applications: Web, Mobile (iOS/Android), Desktop, PWA
+  - Cloud Platforms: Salesforce, Microsoft Azure, AWS, Google Cloud Platform
+  - Other: VS Code Extension, REST/GraphQL API, Microservices, Hybrid
+- **Add existing systems** to integrate (dynamically add multiple systems)
+- **Define constraints** and requirements (budget, timeline, technology restrictions)
+- **Performance requirements** (response time, concurrent users, availability)
+- **Security requirements** (authentication, encryption, compliance)
+- **🤖 AI Tech Stack Suggestions**: AI analyzes your project purpose and technical context to suggest:
+  - Backend Framework/Language with reasoning
+  - Frontend Framework with reasoning
+  - Database Technology with reasoning
+  - Cloud Platform/Hosting with reasoning
+  - Authentication/Security with reasoning
+  - API Architecture with reasoning
+  - Development Tools with reasoning
+  - Testing Frameworks with reasoning
 
 #### Step 3: Features
 
@@ -303,6 +328,39 @@ async function hashPassword(plainPassword) {
 ```
 
 src/
+├── extension.ts # Extension entry point (uses MultiStepWizardPanel)
+├── commands/ # Command handlers
+├── panels/ # Webview panels
+│ ├── MultiStepWizardPanel.ts # Multi-step wizard UI with embedded HTML/CSS/JS
+│ └── DashboardPanel.ts # Progress dashboard
+├── wizard/ # Wizard orchestration
+│ ├── WizardOrchestrator.ts # Step management & AI coordination
+│ └── steps/ # Individual step handlers
+│ ├── PurposeStep.ts # Step 1: AI-enhanced purpose definition
+│ ├── TechnicalContextStep.ts # Step 2: Platform & tech stack
+│ ├── FeaturesStep.ts # Step 3: Feature breakdown
+│ ├── ArchitectureStep.ts # Step 4: System design
+│ ├── TaskBreakdownStep.ts # Step 5: AI task generation
+│ └── ReviewStep.ts # Step 6: Completeness review
+├── services/ # Core services
+│ ├── AIService.ts # GitHub Copilot integration via vscode.lm API
+│ ├── GitHubService.ts # GitHub API integration
+│ └── ProjectFileService.ts # Project persistence
+├── managers/
+│ └── ProjectManager.ts # Project CRUD operations
+├── types/
+│ └── projectModels.ts # TypeScript interfaces
+└── utils/ # Utility functions
+
+media/ # Webview assets (CSS only)
+├── wizard.css # Wizard styling
+└── dashboard.css # Dashboard styling
+
+```
+
+```
+
+src/
 ├── extension.ts # Extension entry point
 ├── commands/ # Command handlers
 ├── panels/ # Webview panels
@@ -349,7 +407,7 @@ Key TypeScript interfaces in `src/types/projectModels.ts`:
 
 ### AI Integration
 
-Uses **VS Code Language Model API** (`vscode.lm`):
+Uses **VS Code Language Model API** (`vscode.lm`) for native GitHub Copilot integration:
 
 ```typescript
 // Example: Generate structured AI response
@@ -358,14 +416,23 @@ const models = await vscode.lm.selectChatModels({
   family: 'gpt-4'
 });
 
-const response = await models[0].sendRequest(
-  [vscode.LanguageModelChatMessage.User(prompt)],
-  {},
-  cancellationToken
-);
-````
+const messages = [vscode.LanguageModelChatMessage.User(prompt)];
+const response = await models[0].sendRequest(messages, {}, cancellationToken);
 
-**No external API keys required** - uses native GitHub Copilot integration.
+// Stream and parse response
+let fullText = '';
+for await (const chunk of response.text) {
+  fullText += chunk;
+}
+const result = JSON.parse(fullText);
+```
+
+**Key AI Features:**
+- **Step 1**: Purpose enhancement with detailed analysis
+- **Step 2**: Tech stack suggestions with reasoning
+- **Step 3-6**: Coming soon (feature generation, architecture design, task breakdown)
+
+**No external API keys required** - uses your active GitHub Copilot subscription.
 
 ## 🛠️ Development
 
@@ -447,15 +514,23 @@ Contributions are welcome! Please:
 
 ### Current (v1.0)
 
-- ✅ Multi-step project wizard
-- ✅ AI-enhanced requirements gathering
-- ✅ AI-ready task prompt generation
+- ✅ Multi-step project wizard (6 steps)
+- ✅ Step 1: AI-enhanced requirements gathering with purpose refinement
+- ✅ Step 2: Comprehensive platform selection (15+ options including Salesforce, Azure, AWS, GCP)
+- ✅ Step 2: Dynamic system integration builder
+- ✅ Step 2: AI-powered tech stack suggestions with detailed reasoning
+- ✅ AI-ready task prompt generation with complete context
 - ✅ GitHub issue creation with full prompts
-- ✅ Project file persistence
+- ✅ Project file persistence (.github-copilot-task-master.json)
+- ✅ Message-based webview architecture with embedded HTML/CSS/JS
 - ✅ Basic progress dashboard
 
 ### Planned (v1.1)
 
+- 🔲 Step 3: AI feature generation with user stories
+- 🔲 Step 4: AI architecture design with component breakdown
+- 🔲 Step 5: AI task breakdown with dependencies
+- 🔲 Step 6: AI completeness review and gap analysis
 - 🔲 Copilot Context Provider (inject project context into Copilot)
 - 🔲 Task progress tracking from GitHub
 - 🔲 Pull request integration
@@ -490,3 +565,4 @@ MIT License - see [LICENSE](LICENSE) file for details
 ---
 
 **Made with ❤️ for developers who love AI-assisted development**
+````
