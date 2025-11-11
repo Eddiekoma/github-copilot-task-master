@@ -1,131 +1,220 @@
-## Design and Implementation Plan for GitHub Copilot Task Master Project
+import * as vscode from 'vscode';
+import { ProjectManager } from '../managers/ProjectManager';
+import { Task } from '../services/AIService';
 
-### Overview
+export class TaskCommands {
+    constructor(private projectManager: ProjectManager) {}
 
-The GitHub Copilot Task Master project aims to create a Visual Studio Code extension that integrates AI assistance for project management. The extension will feature a wizard for defining project requirements, managing tasks through GitHub repositories, and providing a user-friendly interface for tracking project progress and making adjustments.
+    /**
+     * Creates a new task
+     */
+    async createTask(): Promise<void> {
+        const title = await vscode.window.showInputBox({
+            prompt: 'Enter task title',
+            placeHolder: 'e.g., Implement user authentication'
+        });
 
-### Objectives
+        if (!title) {
+            return;
+        }
 
-1. **AI-Assisted Project Requirements Definition**: Create a wizard that guides users through defining project requirements with AI suggestions.
-2. **Task Management**: Integrate with GitHub to manage tasks, issues, and pull requests.
-3. **Progress Tracking**: Provide a dashboard for users to track project progress and make adjustments as needed.
-4. **User-Friendly Interface**: Ensure the extension is intuitive and easy to use.
+        const description = await vscode.window.showInputBox({
+            prompt: 'Enter task description',
+            placeHolder: 'Detailed description of the task'
+        });
 
-### Key Features
+        const priority = await vscode.window.showQuickPick(
+            ['low', 'medium', 'high'],
+            { placeHolder: 'Select priority' }
+        );
 
-1. **Project Requirements Wizard**:
-   - Step-by-step guidance for defining project goals, features, and timelines.
-   - AI suggestions based on user input and historical data.
-   - Ability to save and load project templates.
+        const task: Task = {
+            id: `task-${Date.now()}`,
+            title,
+            description: description || '',
+            priority: (priority || 'medium') as 'low' | 'medium' | 'high',
+            status: 'todo' as const,
+            assignee: undefined,
+            dueDate: undefined,
+            labels: [],
+            estimatedHours: undefined
+        };
 
-2. **GitHub Integration**:
-   - Connect to GitHub repositories to fetch issues and pull requests.
-   - Create, update, and delete tasks directly from the extension.
-   - Sync project requirements with GitHub issues.
+        await this.projectManager.createTask(task);
+        vscode.window.showInformationMessage(`Task "${title}" created successfully!`);
+    }
 
-3. **Progress Tracking Dashboard**:
-   - Visual representation of project progress (e.g., Gantt charts, Kanban boards).
-   - Metrics on task completion, time spent, and remaining work.
-   - Notifications for upcoming deadlines and overdue tasks.
+    /**
+     * Marks a task as complete
+     */
+    async completeTask(taskId: string): Promise<void> {
+        try {
+            await this.projectManager.completeTask(taskId);
+            vscode.window.showInformationMessage('Task marked as complete!');
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to complete task: ${error}`);
+        }
+    }
 
-4. **User Interface**:
-   - Clean and modern UI design that aligns with VS Code aesthetics.
-   - Contextual help and tooltips for user guidance.
-   - Customizable settings for user preferences.
+    /**
+     * Deletes a task
+     */
+    async deleteTask(taskId: string): Promise<void> {
+        const confirm = await vscode.window.showWarningMessage(
+            'Are you sure you want to delete this task?',
+            'Yes', 'No'
+        );
 
-### Implementation Plan
+        if (confirm === 'Yes') {
+            try {
+                await this.projectManager.deleteTask(taskId);
+                vscode.window.showInformationMessage('Task deleted successfully!');
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to delete task: ${error}`);
+            }
+        }
+    }
 
-#### Phase 1: Research and Planning
+    /**
+     * Updates a task
+     */
+    async updateTask(taskId: string): Promise<void> {
+        const task = await this.projectManager.getTask(taskId);
+        if (!task) {
+            vscode.window.showErrorMessage('Task not found');
+            return;
+        }
 
-1. **Market Research**:
-   - Analyze existing project management tools and VS Code extensions.
-   - Identify gaps and opportunities for improvement.
+        const updatedTitle = await vscode.window.showInputBox({
+            prompt: 'Update task title',
+            value: task.title
+        });
 
-2. **User Interviews**:
-   - Conduct interviews with potential users to gather requirements and pain points.
-   - Create user personas to guide design decisions.
+        if (updatedTitle === undefined) {
+            return; // User cancelled
+        }
 
-3. **Technical Feasibility Study**:
-   - Evaluate the technical requirements for GitHub API integration.
-   - Assess the capabilities of AI models for project requirement suggestions.
+        const updatedDescription = await vscode.window.showInputBox({
+            prompt: 'Update task description',
+            value: task.description
+        });
 
-#### Phase 2: Design
+        if (updatedDescription === undefined) {
+            return; // User cancelled
+        }
 
-1. **Wireframes and Prototypes**:
-   - Create wireframes for the wizard, dashboard, and task management interface.
-   - Develop interactive prototypes for user testing.
+        const updatedTask = {
+            ...task,
+            title: updatedTitle || task.title,
+            description: updatedDescription || task.description
+        };
 
-2. **User Experience (UX) Design**:
-   - Focus on intuitive navigation and accessibility.
-   - Incorporate feedback from user testing to refine the design.
+        await this.projectManager.updateTask(taskId, updatedTask);
+        vscode.window.showInformationMessage('Task updated successfully!');
+    }
 
-3. **Technical Architecture**:
-   - Define the architecture of the extension, including:
-     - Frontend (React, TypeScript)
-     - Backend (Node.js for API interactions)
-     - AI integration (OpenAI or similar for suggestions)
+    /**
+     * Shows all tasks
+     */
+    async showAllTasks(): Promise<void> {
+        const tasks = await this.projectManager.getAllTasks();
+        
+        if (tasks.length === 0) {
+            vscode.window.showInformationMessage('No tasks found');
+            return;
+        }
 
-#### Phase 3: Development
+        const taskItems = tasks.map(task => ({
+            label: task.title,
+            description: `[${task.priority}] - ${task.estimatedHours}h`,
+            detail: task.description,
+            task
+        }));
 
-1. **Setup Development Environment**:
-   - Initialize the project repository and set up CI/CD pipelines.
-   - Configure ESLint, Prettier, and testing frameworks (e.g., Jest).
+        const selected = await vscode.window.showQuickPick(taskItems, {
+            placeHolder: 'Select a task to view details'
+        });
 
-2. **Implement Project Requirements Wizard**:
-   - Develop the wizard interface and integrate AI suggestions.
-   - Implement functionality to save and load project templates.
+        if (selected) {
+            const action = await vscode.window.showQuickPick(
+                ['Complete', 'Edit', 'Delete', 'Cancel'],
+                { placeHolder: `What would you like to do with "${selected.task.title}"?` }
+            );
 
-3. **Integrate GitHub API**:
-   - Set up OAuth for GitHub authentication.
-   - Implement functions to fetch, create, update, and delete tasks.
+            if (action === 'Complete' && selected.task.id) {
+                await this.completeTask(selected.task.id);
+            } else if (action === 'Edit' && selected.task.id) {
+                await this.updateTask(selected.task.id);
+            } else if (action === 'Delete' && selected.task.id) {
+                await this.deleteTask(selected.task.id);
+            }
+        }
+    }
 
-4. **Build Progress Tracking Dashboard**:
-   - Create visual components for displaying project progress.
-   - Implement metrics calculations and notifications.
+    /**
+     * Refreshes the task view
+     */
+    async refreshTasks(): Promise<void> {
+        await this.projectManager.refreshTasks();
+        vscode.window.showInformationMessage('Tasks refreshed!');
+    }
 
-5. **User Interface Development**:
-   - Style the extension using CSS-in-JS or a UI library (e.g., Material-UI).
-   - Ensure responsiveness and accessibility.
+    /**
+     * Exports tasks to markdown
+     */
+    async exportTasks(): Promise<void> {
+        const tasks = await this.projectManager.getAllTasks();
+        
+        if (tasks.length === 0) {
+            vscode.window.showWarningMessage('No tasks to export');
+            return;
+        }
 
-#### Phase 4: Testing
+        let markdown = '# Project Tasks\n\n';
+        
+        const highPriorityTasks = tasks.filter(t => t.priority === 'high');
+        const mediumPriorityTasks = tasks.filter(t => t.priority === 'medium');
+        const lowPriorityTasks = tasks.filter(t => t.priority === 'low');
 
-1. **Unit Testing**:
-   - Write unit tests for all components and functions.
-   - Ensure high test coverage and reliability.
+        if (highPriorityTasks.length > 0) {
+            markdown += '## High Priority\n\n';
+            highPriorityTasks.forEach(task => {
+                markdown += `- **${task.title}** (${task.estimatedHours}h)\n`;
+                if (task.description) {
+                    markdown += `  ${task.description}\n`;
+                }
+            });
+            markdown += '\n';
+        }
 
-2. **Integration Testing**:
-   - Test the integration with GitHub API and AI services.
-   - Validate the end-to-end functionality of the extension.
+        if (mediumPriorityTasks.length > 0) {
+            markdown += '## Medium Priority\n\n';
+            mediumPriorityTasks.forEach(task => {
+                markdown += `- **${task.title}** (${task.estimatedHours}h)\n`;
+                if (task.description) {
+                    markdown += `  ${task.description}\n`;
+                }
+            });
+            markdown += '\n';
+        }
 
-3. **User Acceptance Testing (UAT)**:
-   - Conduct UAT sessions with potential users.
-   - Gather feedback and make necessary adjustments.
+        if (lowPriorityTasks.length > 0) {
+            markdown += '## Low Priority\n\n';
+            lowPriorityTasks.forEach(task => {
+                markdown += `- **${task.title}** (${task.estimatedHours}h)\n`;
+                if (task.description) {
+                    markdown += `  ${task.description}\n`;
+                }
+            });
+        }
 
-#### Phase 5: Deployment
-
-1. **Prepare for Release**:
-   - Create documentation for installation and usage.
-   - Prepare marketing materials and promotional content.
-
-2. **Publish to Visual Studio Code Marketplace**:
-   - Follow the guidelines for publishing extensions.
-   - Monitor user feedback and reviews post-launch.
-
-3. **Post-Launch Support**:
-   - Provide ongoing support and updates based on user feedback.
-   - Plan for future enhancements and feature requests.
-
-### Timeline
-
-| Phase                     | Duration        |
-|---------------------------|-----------------|
-| Research and Planning      | 4 weeks         |
-| Design                     | 4 weeks         |
-| Development                | 8 weeks         |
-| Testing                    | 4 weeks         |
-| Deployment                 | 2 weeks         |
-| **Total**                 | **22 weeks**    |
-
-### Conclusion
-
-The GitHub Copilot Task Master project aims to enhance project management through AI assistance and seamless integration with GitHub. By following this detailed design and implementation plan, the team can create a valuable tool that improves productivity and project tracking for developers.
+        // Create a new untitled document with the markdown content
+        const doc = await vscode.workspace.openTextDocument({
+            content: markdown,
+            language: 'markdown'
+        });
+        
+        await vscode.window.showTextDocument(doc);
+        vscode.window.showInformationMessage('Tasks exported to markdown!');
+    }
+}

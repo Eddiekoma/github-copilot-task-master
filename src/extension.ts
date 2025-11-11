@@ -35,7 +35,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(showWizard, showDashboard, syncGitHub);
 
     // Auto-sync on startup if configured
-    if (vscode.workspace.getConfiguration('taskMaster').get('autoSync')) {
+    const config = vscode.workspace.getConfiguration('taskMaster');
+    if (config.get('autoSync')) {
         projectManager.syncWithGitHub();
     }
 }

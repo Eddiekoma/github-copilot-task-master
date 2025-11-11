@@ -1,149 +1,172 @@
 import * as vscode from 'vscode';
+import { GitHubService } from '../services/GitHubService';
+import { AIService } from '../services/AIService';
+import { Project, Task, ProjectData } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { GitHubService, GitHubIssue } from '../services/GitHubService';
-import { AIService, ProjectRequirements, Task } from '../services/AIService';
 
 export class ProjectManager {
-    private currentProject: ProjectRequirements | null = null;
-    private projectPath: string;
+    private projects: Project[] = [];
+    private currentProject: Project | undefined;
+    private storagePath: string;
 
     constructor(
         private context: vscode.ExtensionContext,
         private githubService: GitHubService,
         private aiService: AIService
     ) {
-        this.projectPath = path.join(
-            vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
-            '.taskmaster'
-        );
-        this.loadProject();
+        this.storagePath = path.join(context.globalStorageUri.fsPath, 'projects.json');
+        this.loadProjects();
     }
 
-    private async loadProject() {
-        const configFile = path.join(this.projectPath, 'project.json');
-        if (fs.existsSync(configFile)) {
-            try {
-                const content = fs.readFileSync(configFile, 'utf8');
-                this.currentProject = JSON.parse(content);
-            } catch (error) {
-                console.error('Failed to load project:', error);
+    private loadProjects(): void {
+        if (fs.existsSync(this.storagePath)) {
+            const data = fs.readFileSync(this.storagePath, 'utf8');
+            this.projects = JSON.parse(data);
+            if (this.projects.length > 0) {
+                this.currentProject = this.projects[0];
             }
         }
     }
 
-    private async saveProject() {
-        if (!this.currentProject) {return;}
-        
-        if (!fs.existsSync(this.projectPath)) {
-            fs.mkdirSync(this.projectPath, { recursive: true });
+    private async saveProjects(): Promise<void> {
+        const dir = path.dirname(this.storagePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
         }
-        
-        const configFile = path.join(this.projectPath, 'project.json');
-        fs.writeFileSync(configFile, JSON.stringify(this.currentProject, null, 2));
+        fs.writeFileSync(this.storagePath, JSON.stringify(this.projects, null, 2));
     }
 
-    async createProject(projectIdea: string): Promise<ProjectRequirements | null> {
-        const requirements = await this.aiService.generateProjectRequirements(projectIdea);
-        if (requirements) {
-            this.currentProject = requirements;
-            await this.saveProject();
-            await this.syncWithGitHub();
+    async createProject(projectData: ProjectData): Promise<Project> {
+        const project: Project = {
+            id: `project_${Date.now()}`,
+            name: projectData.name,
+            description: projectData.description,
+            requirements: projectData.requirements,
+            tasks: [],
+            githubRepo: projectData.githubRepo,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        this.projects.push(project);
+        this.currentProject = project;
+        await this.saveProjects();
+
+        if (projectData.createGitHub) {
+            await this.githubService.createRepository(project.name, project.description);
         }
-        return requirements;
+
+        return project;
     }
 
-    async updateProject(updates: Partial<ProjectRequirements>) {
+    async generateTasks(requirements: string): Promise<Task[]> {
+        const tasks = await this.aiService.generateTasksFromRequirements(requirements);
         if (this.currentProject) {
-            this.currentProject = { ...this.currentProject, ...updates };
-            await this.saveProject();
+            this.currentProject.tasks = tasks;
+            await this.saveProjects();
         }
+        return tasks;
     }
 
-    async addTask(task: Task) {
-        if (this.currentProject) {
-            this.currentProject.tasks.push(task);
-            await this.saveProject();
-            
-            // Create GitHub issue
-            const issue = await this.githubService.createIssue(
-                task.title,
-                this.formatTaskForGitHub(task),
-                [task.priority]
-            );
-            
-            if (issue) {
-                vscode.window.showInformationMessage(`Created GitHub issue #${issue.id}`);
-            }
+    async syncWithGitHub(): Promise<void> {
+        if (!this.currentProject?.githubRepo) {
+            vscode.window.showWarningMessage('No GitHub repository configured');
+            return;
         }
-    }
 
-    async syncWithGitHub() {
-        if (!this.currentProject) {return;}
-        
-        const issues = await this.githubService.getIssues();
-        
-        // Create issues for tasks that don't exist
-        for (const task of this.currentProject.tasks) {
-            const existingIssue = issues.find(i => i.title === task.title);
-            if (!existingIssue) {
-                await this.githubService.createIssue(
-                    task.title,
-                    this.formatTaskForGitHub(task),
-                    [task.priority, 'task-master']
+        try {
+            const issues = await this.githubService.getIssues(this.currentProject.githubRepo);
+            
+            for (const issue of issues) {
+                const existingTask = this.currentProject.tasks.find(
+                    t => t.githubIssueNumber === issue.number
                 );
+                
+                if (!existingTask) {
+                    const task: Task = {
+                        id: `task_${issue.number}`,
+                        title: issue.title,
+                        description: issue.body || '',
+                        status: issue.state === 'open' ? 'todo' : 'completed',
+                        priority: 'medium',
+                        githubIssueNumber: issue.number,
+                        labels: issue.labels?.map((l: { name: string }) => l.name) || []
+                    };
+                    this.currentProject.tasks.push(task);
+                }
             }
+            
+            await this.saveProjects();
+        } catch (error) {
+            vscode.window.showErrorMessage(`GitHub sync failed: ${error}`);
         }
-    }
-
-    private formatTaskForGitHub(task: Task): string {
-        return `
-## Description
-${task.description}
-
-## Priority
-${task.priority}
-
-## Estimated Hours
-${task.estimatedHours}
-
-## Dependencies
-${task.dependencies.map(d => `- ${d}`).join('\n')}
-
-## Acceptance Criteria
-${task.acceptanceCriteria.map(ac => `- [ ] ${ac}`).join('\n')}
-
----
-*Generated by GitHub Copilot Task Master*
-        `.trim();
-    }
-
-    getProject(): ProjectRequirements | null {
-        return this.currentProject;
     }
 
     getTasks(): Task[] {
         return this.currentProject?.tasks || [];
     }
 
-    async refineTask(taskTitle: string): Promise<Task | null> {
-        if (!this.currentProject) {return null;}
-        
-        const task = this.currentProject.tasks.find(t => t.title === taskTitle);
-        if (task) {
-            const refinedTask = await this.aiService.refineTask(
-                task,
-                this.currentProject.description
-            );
-            
-            if (refinedTask) {
-                const index = this.currentProject.tasks.findIndex(t => t.title === taskTitle);
-                this.currentProject.tasks[index] = refinedTask;
-                await this.saveProject();
-                return refinedTask;
+    async createTask(task: Omit<Task, 'id'>): Promise<void> {
+        const newTask: Task = {
+            ...task,
+            id: `task_${Date.now()}`
+        };
+        if (this.currentProject) {
+            this.currentProject.tasks.push(newTask);
+            await this.saveProjects();
+        }
+    }
+
+    async completeTask(taskId: string): Promise<void> {
+        if (this.currentProject) {
+            const task = this.currentProject.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.status = 'completed';
+                await this.saveProjects();
             }
         }
-        
-        return null;
+    }
+
+    async deleteTask(taskId: string): Promise<void> {
+        if (this.currentProject) {
+            const index = this.currentProject.tasks.findIndex(t => t.id === taskId);
+            if (index !== -1) {
+                this.currentProject.tasks.splice(index, 1);
+                await this.saveProjects();
+            }
+        }
+    }
+
+    async getTask(taskId: string): Promise<Task | undefined> {
+        return this.currentProject?.tasks.find(t => t.id === taskId);
+    }
+
+    async updateTask(taskId: string, updates: Partial<Task>): Promise<void> {
+        if (this.currentProject) {
+            const task = this.currentProject.tasks.find(t => t.id === taskId);
+            if (task) {
+                Object.assign(task, updates);
+                await this.saveProjects();
+            }
+        }
+    }
+
+    async getAllTasks(): Promise<Task[]> {
+        return this.currentProject?.tasks || [];
+    }
+
+    async refreshTasks(): Promise<void> {
+        if (this.currentProject?.githubRepo) {
+            await this.syncWithGitHub();
+        }
+    }
+
+    getCurrentProject(): Project | undefined {
+        return this.currentProject;
+    }
+
+    getProjects(): Project[] {
+        return this.projects;
     }
 }

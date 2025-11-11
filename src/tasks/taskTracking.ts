@@ -1,127 +1,225 @@
-### Design and Implementation Plan for GitHub Copilot Task Master Project
+export interface TaskStatus {
+    id: string;
+    status: 'todo' | 'in-progress' | 'completed' | 'blocked';
+    startedAt?: Date;
+    completedAt?: Date;
+    blockedReason?: string;
+}
 
-#### Overview
-The GitHub Copilot Task Master project aims to create a Visual Studio Code (VS Code) extension that leverages AI assistance to help users define project requirements, manage tasks through GitHub repositories, and track project progress. The extension will feature a wizard interface for user input, task management capabilities, and integration with GitHub for seamless collaboration.
+export interface TaskMetrics {
+    totalTasks: number;
+    completedTasks: number;
+    inProgressTasks: number;
+    todoTasks: number;
+    blockedTasks: number;
+    totalEstimatedHours: number;
+    completedHours: number;
+    remainingHours: number;
+    completionRate: number;
+    averageCompletionTime: number;
+}
 
----
+export interface TaskProgress {
+    taskId: string;
+    percentComplete: number;
+    hoursSpent: number;
+    lastUpdated: Date;
+    notes?: string;
+}
 
-### 1. Project Requirements
+export class TaskTracking {
+    private taskStatuses: Map<string, TaskStatus> = new Map();
+    private taskProgress: Map<string, TaskProgress> = new Map();
+    private taskCompletionTimes: Map<string, number> = new Map();
 
-#### 1.1 Functional Requirements
-- **AI-Assisted Project Wizard**: 
-  - A step-by-step wizard to guide users in defining project requirements.
-  - AI suggestions for project scope, features, and tasks based on user input.
-  
-- **Task Management**:
-  - Create, update, and delete tasks directly from the VS Code interface.
-  - Integration with GitHub Issues for task tracking.
-  - Ability to assign tasks to team members and set deadlines.
+    /**
+     * Updates the status of a task
+     */
+    updateTaskStatus(taskId: string, status: TaskStatus['status'], reason?: string): void {
+        const currentStatus = this.taskStatuses.get(taskId);
+        const now = new Date();
 
-- **Progress Tracking**:
-  - Visual representation of project progress (e.g., Kanban board, Gantt chart).
-  - Notifications for task updates and deadlines.
-  - Ability to adjust tasks and timelines based on project changes.
+        const newStatus: TaskStatus = {
+            id: taskId,
+            status,
+            startedAt: currentStatus?.startedAt,
+            completedAt: currentStatus?.completedAt,
+            blockedReason: reason
+        };
 
-- **User Interface**:
-  - Intuitive UI integrated into VS Code.
-  - Responsive design that adapts to different screen sizes and resolutions.
-  
-#### 1.2 Non-Functional Requirements
-- **Performance**: The extension should load quickly and respond to user actions without noticeable lag.
-- **Security**: Ensure secure authentication with GitHub and protect user data.
-- **Usability**: The interface should be user-friendly, with clear instructions and tooltips.
-- **Compatibility**: The extension should work on multiple platforms (Windows, macOS, Linux).
+        // Handle status transitions
+        if (status === 'in-progress' && (!currentStatus || currentStatus.status === 'todo')) {
+            newStatus.startedAt = now;
+        } else if (status === 'completed' && currentStatus?.status !== 'completed') {
+            newStatus.completedAt = now;
+            
+            // Calculate completion time if we have a start time
+            if (currentStatus?.startedAt) {
+                const completionTime = now.getTime() - currentStatus.startedAt.getTime();
+                this.taskCompletionTimes.set(taskId, completionTime);
+            }
+        } else if (status === 'blocked') {
+            newStatus.blockedReason = reason || 'No reason provided';
+        }
 
----
+        this.taskStatuses.set(taskId, newStatus);
+    }
 
-### 2. Technical Design
+    /**
+     * Gets the status of a specific task
+     */
+    getTaskStatus(taskId: string): TaskStatus | undefined {
+        return this.taskStatuses.get(taskId);
+    }
 
-#### 2.1 Architecture
-- **Frontend**: 
-  - Built using React for the UI components.
-  - Integrated with VS Code API for extension capabilities.
-  
-- **Backend**:
-  - Node.js server to handle API requests and manage task data.
-  - Integration with GitHub API for task management and repository access.
+    /**
+     * Updates the progress of a task
+     */
+    updateTaskProgress(taskId: string, percentComplete: number, hoursSpent: number, notes?: string): void {
+        const progress: TaskProgress = {
+            taskId,
+            percentComplete: Math.min(100, Math.max(0, percentComplete)),
+            hoursSpent,
+            lastUpdated: new Date(),
+            notes
+        };
 
-#### 2.2 Components
-- **Project Wizard**:
-  - Multi-step form to gather project requirements.
-  - AI integration using OpenAI API for suggestions.
+        this.taskProgress.set(taskId, progress);
 
-- **Task Management Module**:
-  - CRUD operations for tasks.
-  - GitHub Issues integration for task synchronization.
+        // Auto-update status based on progress
+        if (percentComplete === 100) {
+            this.updateTaskStatus(taskId, 'completed');
+        } else if (percentComplete > 0) {
+            const status = this.getTaskStatus(taskId);
+            if (!status || status.status === 'todo') {
+                this.updateTaskStatus(taskId, 'in-progress');
+            }
+        }
+    }
 
-- **Progress Tracking Dashboard**:
-  - Visual components for displaying project status.
-  - Charts and graphs for progress visualization.
+    /**
+     * Gets the progress of a specific task
+     */
+    getTaskProgress(taskId: string): TaskProgress | undefined {
+        return this.taskProgress.get(taskId);
+    }
 
-#### 2.3 Data Flow
-1. User initiates the project wizard.
-2. User inputs project requirements.
-3. AI suggests tasks and features.
-4. User confirms and creates tasks.
-5. Tasks are synced with GitHub Issues.
-6. User accesses the progress dashboard to track and adjust tasks.
+    /**
+     * Calculates metrics for a set of tasks
+     */
+    getMetrics(tasks: Array<{id: string, estimatedHours: number}>): TaskMetrics {
+        let completedTasks = 0;
+        let inProgressTasks = 0;
+        let todoTasks = 0;
+        let blockedTasks = 0;
+        let completedHours = 0;
+        let totalEstimatedHours = 0;
+        let remainingHours = 0;
+        let totalCompletionTime = 0;
+        let completionCount = 0;
 
----
+        for (const task of tasks) {
+            const status = this.taskStatuses.get(task.id);
+            const progress = this.taskProgress.get(task.id);
+            totalEstimatedHours += task.estimatedHours;
 
-### 3. Implementation Plan
+            const taskStatus = status?.status || 'todo';
+            const hoursCompleted = progress 
+                ? (task.estimatedHours * progress.percentComplete / 100)
+                : 0;
 
-#### 3.1 Development Environment Setup
-- **Tools**: 
-  - Visual Studio Code for development.
-  - Node.js for backend services.
-  - GitHub CLI for repository management.
-  
-- **Repositories**:
-  - Create a GitHub repository for the extension codebase.
-  - Set up a separate repository for the backend service.
+            switch (taskStatus) {
+                case 'completed':
+                    completedTasks++;
+                    completedHours += task.estimatedHours;
+                    const completionTime = this.taskCompletionTimes.get(task.id);
+                    if (completionTime) {
+                        totalCompletionTime += completionTime;
+                        completionCount++;
+                    }
+                    break;
+                case 'in-progress':
+                    inProgressTasks++;
+                    completedHours += hoursCompleted;
+                    remainingHours += task.estimatedHours - hoursCompleted;
+                    break;
+                case 'blocked':
+                    blockedTasks++;
+                    remainingHours += task.estimatedHours - hoursCompleted;
+                    break;
+                case 'todo':
+                default:
+                    todoTasks++;
+                    remainingHours += task.estimatedHours;
+                    break;
+            }
+        }
 
-#### 3.2 Development Phases
+        const averageCompletionTime = completionCount > 0 
+            ? totalCompletionTime / completionCount 
+            : 0;
 
-##### Phase 1: Project Wizard Development
-- **Task**: Create the UI for the wizard using React.
-- **Task**: Implement AI suggestions using OpenAI API.
-- **Task**: Validate user inputs and handle errors.
+        return {
+            totalTasks: tasks.length,
+            completedTasks,
+            inProgressTasks,
+            todoTasks,
+            blockedTasks,
+            totalEstimatedHours,
+            completedHours,
+            remainingHours,
+            completionRate: tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0,
+            averageCompletionTime
+        };
+    }
 
-##### Phase 2: Task Management Module
-- **Task**: Implement CRUD operations for tasks.
-- **Task**: Integrate with GitHub API to manage issues.
-- **Task**: Create a user interface for task management.
+    /**
+     * Gets tasks by status
+     */
+    getTasksByStatus(status: TaskStatus['status']): string[] {
+        const tasks: string[] = [];
+        this.taskStatuses.forEach((taskStatus, taskId) => {
+            if (taskStatus.status === status) {
+                tasks.push(taskId);
+            }
+        });
+        return tasks;
+    }
 
-##### Phase 3: Progress Tracking Dashboard
-- **Task**: Develop visual components for progress tracking.
-- **Task**: Implement data fetching from the backend.
-- **Task**: Create charts and graphs for visualization.
+    /**
+     * Clears all tracking data
+     */
+    clearAll(): void {
+        this.taskStatuses.clear();
+        this.taskProgress.clear();
+        this.taskCompletionTimes.clear();
+    }
 
-##### Phase 4: Testing and Quality Assurance
-- **Task**: Write unit tests for all components.
-- **Task**: Conduct integration testing with GitHub.
-- **Task**: Perform user acceptance testing (UAT) with a focus group.
+    /**
+     * Exports tracking data for persistence
+     */
+    exportData(): {
+        statuses: Array<[string, TaskStatus]>,
+        progress: Array<[string, TaskProgress]>,
+        completionTimes: Array<[string, number]>
+    } {
+        return {
+            statuses: Array.from(this.taskStatuses.entries()),
+            progress: Array.from(this.taskProgress.entries()),
+            completionTimes: Array.from(this.taskCompletionTimes.entries())
+        };
+    }
 
-##### Phase 5: Deployment
-- **Task**: Package the extension for VS Code Marketplace.
-- **Task**: Deploy the backend service to a cloud provider (e.g., AWS, Heroku).
-- **Task**: Publish the extension on the VS Code Marketplace.
-
----
-
-### 4. User Documentation
-- **User Guide**: Create a comprehensive user guide detailing how to use the extension.
-- **API Documentation**: Document the backend API endpoints for developers.
-- **FAQs**: Compile a list of frequently asked questions and troubleshooting tips.
-
----
-
-### 5. Maintenance and Support
-- **Regular Updates**: Schedule regular updates to improve features and fix bugs.
-- **User Feedback**: Implement a feedback mechanism for users to report issues and suggest improvements.
-- **Community Engagement**: Foster a community around the extension for user support and collaboration.
-
----
-
-### Conclusion
-The GitHub Copilot Task Master project aims to enhance project management through AI assistance and seamless integration with GitHub. By following this detailed design and implementation plan, the project can be developed efficiently, ensuring a user-friendly experience and effective task management capabilities.
+    /**
+     * Imports tracking data from persistence
+     */
+    importData(data: {
+        statuses: Array<[string, TaskStatus]>,
+        progress: Array<[string, TaskProgress]>,
+        completionTimes: Array<[string, number]>
+    }): void {
+        this.taskStatuses = new Map(data.statuses);
+        this.taskProgress = new Map(data.progress);
+        this.taskCompletionTimes = new Map(data.completionTimes);
+    }
+}

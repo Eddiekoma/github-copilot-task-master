@@ -1,160 +1,134 @@
-import OpenAI from 'openai';
 import * as vscode from 'vscode';
+import OpenAI from 'openai';
+import { Task, ProjectRequirements } from '../types';
 
-export interface ProjectRequirements {
-    title: string;
-    description: string;
-    features: string[];
-    tasks: Task[];
-    techStack: string[];
-    architecture: string;
-}
-
-export interface Task {
-    title: string;
-    description: string;
-    priority: 'high' | 'medium' | 'low';
-    estimatedHours: number;
-    dependencies: string[];
-    acceptanceCriteria: string[];
-}
+export { Task, ProjectRequirements };  // Re-export from types
 
 export class AIService {
-    private openai: OpenAI | null = null;
+    private openai: OpenAI | undefined;
 
     constructor(private context: vscode.ExtensionContext) {
-        this.initialize();
+        this.initializeOpenAI();
     }
 
-    private initialize() {
+    private initializeOpenAI() {
         const config = vscode.workspace.getConfiguration('taskMaster');
         const apiKey = config.get<string>('ai.apiKey');
         
         if (apiKey) {
-            this.openai = new OpenAI({ apiKey });
+            this.openai = new OpenAI({
+                apiKey: apiKey
+            });
         }
     }
 
-    async generateProjectRequirements(projectIdea: string): Promise<ProjectRequirements | null> {
+    async generateProjectRequirements(description: string): Promise<ProjectRequirements> {
         if (!this.openai) {
-            vscode.window.showWarningMessage('AI service not configured. Using fallback mode.');
-            return this.getFallbackRequirements(projectIdea);
+            throw new Error('OpenAI API not configured');
         }
 
-        try {
-            const prompt = `
-                Based on the following project idea, generate detailed project requirements:
-                "${projectIdea}"
-                
-                Please provide:
-                1. A clear project title
-                2. Detailed description
-                3. List of main features
-                4. Breakdown of tasks with priorities and time estimates
-                5. Recommended tech stack
-                6. High-level architecture description
-                
-                Format the response as JSON with the following structure:
-                {
-                    "title": "string",
-                    "description": "string",
-                    "features": ["string"],
-                    "tasks": [{
-                        "title": "string",
-                        "description": "string",
-                        "priority": "high|medium|low",
-                        "estimatedHours": number,
-                        "dependencies": ["string"],
-                        "acceptanceCriteria": ["string"]
-                    }],
-                    "techStack": ["string"],
-                    "architecture": "string"
-                }
-            `;
+        const prompt = `Based on the following project description, generate detailed project requirements:
+        
+        Description: ${description}
+        
+        Please provide:
+        1. A clear title
+        2. A detailed description
+        3. A list of key features
+        4. A list of tasks to implement
+        5. Recommended tech stack
+        6. Architecture overview
+        
+        Format the response as JSON.`;
 
+        try {
             const response = await this.openai.chat.completions.create({
-                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-4',
+                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-3.5-turbo',
                 messages: [
-                    { role: 'system', content: 'You are a project planning assistant. Always respond with valid JSON.' },
+                    { role: 'system', content: 'You are a helpful assistant that generates project requirements.' },
                     { role: 'user', content: prompt }
                 ],
                 temperature: 0.7,
-                max_tokens: 2000
-            });
-
-            const content = response.choices[0]?.message?.content;
-            if (content) {
-                return JSON.parse(content) as ProjectRequirements;
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage(`AI generation failed: ${error}`);
-        }
-
-        return null;
-    }
-
-    async refineTask(task: Task, context: string): Promise<Task | null> {
-        if (!this.openai) {
-            return task;
-        }
-
-        try {
-            const prompt = `
-                Refine the following task based on the project context:
-                
-                Task: ${JSON.stringify(task)}
-                Context: ${context}
-                
-                Improve the task description, add more specific acceptance criteria, 
-                and adjust time estimates if needed. Return the refined task as JSON.
-            `;
-
-            const response = await this.openai.chat.completions.create({
-                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-4',
-                messages: [
-                    { role: 'system', content: 'You are a task refinement assistant. Always respond with valid JSON.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0.5,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 max_tokens: 1000
             });
 
             const content = response.choices[0]?.message?.content;
             if (content) {
-                return JSON.parse(content) as Task;
+                return JSON.parse(content);
             }
         } catch (error) {
-            vscode.window.showErrorMessage(`Task refinement failed: ${error}`);
+            console.error('Error generating requirements:', error);
+            throw error;
         }
 
-        return null;
-    }
-
-    private getFallbackRequirements(projectIdea: string): ProjectRequirements {
+        // Return default requirements if generation fails
         return {
             title: 'New Project',
-            description: projectIdea,
-            features: ['Feature 1', 'Feature 2', 'Feature 3'],
-            tasks: [
-                {
-                    title: 'Setup project structure',
-                    description: 'Initialize project with necessary configurations',
-                    priority: 'high',
-                    estimatedHours: 2,
-                    dependencies: [],
-                    acceptanceCriteria: ['Project structure created', 'Dependencies installed']
-                },
-                {
-                    title: 'Implement core functionality',
-                    description: 'Build the main features of the application',
-                    priority: 'high',
-                    estimatedHours: 16,
-                    dependencies: ['Setup project structure'],
-                    acceptanceCriteria: ['Core features working', 'Tests passing']
-                }
-            ],
-            techStack: ['TypeScript', 'Node.js'],
-            architecture: 'Modular architecture with clear separation of concerns'
+            description: description,
+            features: [],
+            tasks: [],
+            techStack: [],
+            architecture: ''
         };
+    }
+
+    async generateTasksFromRequirements(requirements: string): Promise<Task[]> {
+        if (!this.openai) {
+            throw new Error('OpenAI API not configured');
+        }
+
+        const prompt = `Based on the following project requirements, generate a list of tasks:
+        
+        Requirements: ${requirements}
+        
+        For each task, provide:
+        - title
+        - description
+        - priority (low, medium, high)
+        - estimatedHours
+        
+        Format the response as a JSON array of tasks.`;
+
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: vscode.workspace.getConfiguration('taskMaster').get('ai.model') || 'gpt-3.5-turbo',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant that generates project tasks.' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.7,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                max_tokens: 1500
+            });
+
+            const content = response.choices[0]?.message?.content;
+            if (content) {
+                const tasksData = JSON.parse(content);
+                return tasksData.map((task: {
+                    title: string;
+                    description: string;
+                    priority?: 'low' | 'medium' | 'high';
+                    estimatedHours?: number;
+                }, index: number) => ({
+                    id: `task_${Date.now()}_${index}`,
+                    title: task.title,
+                    description: task.description,
+                    status: 'todo' as const,
+                    priority: task.priority || 'medium',
+                    estimatedHours: task.estimatedHours
+                }));
+            }
+        } catch (error) {
+            console.error('Error generating tasks:', error);
+        }
+
+        return [];
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async generateSuggestions(_context: string): Promise<string[]> {
+        // Placeholder for generating suggestions
+        return [];
     }
 }

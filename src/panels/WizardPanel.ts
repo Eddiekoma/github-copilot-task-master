@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ProjectManager } from '../managers/ProjectManager';
+import { getNonce } from '../utils/getNonce';
 
 export class WizardPanel {
     public static currentPanel: WizardPanel | undefined;
@@ -58,18 +59,6 @@ export class WizardPanel {
                             });
                         }
                         break;
-                    case 'addTask':
-                        await this.projectManager.addTask(message.task);
-                        break;
-                    case 'refineTask':
-                        const refined = await this.projectManager.refineTask(message.taskTitle);
-                        if (refined) {
-                            this._panel.webview.postMessage({
-                                command: 'taskRefined',
-                                task: refined
-                            });
-                        }
-                        break;
                 }
             },
             null,
@@ -116,39 +105,14 @@ export class WizardPanel {
             <body>
                 <div class="wizard-container">
                     <h1>🚀 Project Setup Wizard</h1>
-                    
                     <div class="step" id="step1">
                         <h2>Step 1: Describe Your Project</h2>
                         <textarea id="projectIdea" rows="10" placeholder="Describe your project idea in detail..."></textarea>
                         <button id="generateBtn">Generate Requirements with AI</button>
                     </div>
-
-                    <div class="step hidden" id="step2">
-                        <h2>Step 2: Review Requirements</h2>
-                        <div id="requirementsDisplay"></div>
-                        <button id="confirmBtn">Confirm & Create Project</button>
-                        <button id="backBtn">Back</button>
-                    </div>
-
-                    <div class="step hidden" id="step3">
-                        <h2>Step 3: Task Breakdown</h2>
-                        <div id="tasksDisplay"></div>
-                        <button id="syncBtn">Sync with GitHub</button>
-                        <button id="finishBtn">Finish</button>
-                    </div>
                 </div>
-
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;
     }
-}
-
-function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
 }

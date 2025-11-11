@@ -9,11 +9,7 @@
   },
   "categories": ["Other", "Programming Languages", "Snippets"],
   "keywords": ["github", "copilot", "task", "project", "ai", "management"],
-  "activationEvents": [
-    "onCommand:taskMaster.showWizard",
-    "onCommand:taskMaster.showDashboard",
-    "onView:taskMaster.taskView"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [

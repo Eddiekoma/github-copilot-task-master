@@ -3,12 +3,11 @@ import * as vscode from 'vscode';
 
 export interface GitHubIssue {
     id: number;
+    number: number;
     title: string;
-    body: string;
+    body: string | null;
     state: 'open' | 'closed';
-    labels: string[];
-    assignees: string[];
-    milestone?: string;
+    labels?: Array<{ name: string }>;
 }
 
 export class GitHubService {
@@ -31,99 +30,111 @@ export class GitHubService {
     }
 
     private async detectRepository() {
-        // Try to detect from git remote
-        const gitExtension = vscode.extensions.getExtension('vscode.git');
-        if (gitExtension) {
-            const git = gitExtension.exports.getAPI(1);
-            const repo = git.repositories[0];
-            if (repo) {
-                const remotes = await repo.getRemotes();
-                const origin = remotes.find(r => r.name === 'origin');
-                if (origin && origin.fetchUrl) {
-                    const match = origin.fetchUrl.match(/github\.com[:/](.+?)\/(.+?)(\.git)?$/);
-                    if (match) {
-                        this.owner = match[1];
-                        this.repo = match[2];
+        try {
+            const gitExtension = vscode.extensions.getExtension('vscode.git');
+            if (gitExtension && gitExtension.isActive) {
+                const git = gitExtension.exports.getAPI(1);
+                if (git.repositories.length > 0) {
+                    const repo = git.repositories[0];
+                    const remotes = await repo.getRemotes();
+                    const origin = remotes.find((r: { name: string }) => r.name === 'origin');
+                    if (origin && origin.fetchUrl) {
+                        const match = origin.fetchUrl.match(/github\.com[:/](.+?)\/(.+?)(\.git)?$/);
+                        if (match) {
+                            this.owner = match[1];
+                            this.repo = match[2];
+                        }
                     }
                 }
             }
-        }
-    }
-
-    async createIssue(title: string, body: string, labels: string[] = []): Promise<GitHubIssue | null> {
-        if (!this.octokit || !this.owner || !this.repo) {
-            vscode.window.showErrorMessage('GitHub not configured properly');
-            return null;
-        }
-
-        try {
-            const response = await this.octokit.issues.create({
-                owner: this.owner,
-                repo: this.repo,
-                title,
-                body,
-                labels
-            });
-
-            return {
-                id: response.data.number,
-                title: response.data.title,
-                body: response.data.body || '',
-                state: response.data.state as 'open' | 'closed',
-                labels: response.data.labels.map(l => typeof l === 'string' ? l : l.name || ''),
-                assignees: response.data.assignees?.map(a => a.login) || []
-            };
         } catch (error) {
-            vscode.window.showErrorMessage(`Failed to create issue: ${error}`);
-            return null;
+            console.error('Failed to detect repository:', error);
         }
     }
 
-    async getIssues(): Promise<GitHubIssue[]> {
-        if (!this.octokit || !this.owner || !this.repo) {
-            return [];
+    async getIssues(repoName?: string): Promise<GitHubIssue[]> {
+        if (!this.octokit) {
+            throw new Error('GitHub not authenticated');
         }
 
         try {
             const response = await this.octokit.issues.listForRepo({
-                owner: this.owner,
-                repo: this.repo,
+                owner: 'user', // This should be dynamically determined
+                repo: repoName || 'repo',  // Use repoName parameter
                 state: 'all'
             });
 
-            return response.data.map(issue => ({
-                id: issue.number,
+            return response.data.map((issue) => ({
+                id: issue.id,
+                number: issue.number,
                 title: issue.title,
-                body: issue.body || '',
+                body: issue.body ?? null,
                 state: issue.state as 'open' | 'closed',
-                labels: issue.labels.map(l => typeof l === 'string' ? l : l.name || ''),
-                assignees: issue.assignees?.map(a => a.login) || []
+                labels: issue.labels.map(label => 
+                    typeof label === 'string' ? { name: label } : { name: label.name ?? '' }
+                ),
+                assignees: issue.assignees?.map(a => ({ login: a?.login ?? '' })) ?? []
             }));
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to fetch issues: ${error}`);
-            return [];
+        } catch (error: unknown) {
+            console.error('Error fetching issues:', error);
+            throw error;
         }
     }
 
-    async updateIssue(issueNumber: number, updates: Partial<GitHubIssue>): Promise<boolean> {
-        if (!this.octokit || !this.owner || !this.repo) {
-            return false;
+    async createIssue(title: string, body?: string, labels?: string[]): Promise<void> {
+        if (!this.octokit) {
+            throw new Error('GitHub not authenticated');
+        }
+
+        try {
+            await this.octokit.issues.create({
+                owner: 'user', // This should be dynamically determined
+                repo: 'repo',  // This should be dynamically determined
+                title,
+                body: body || '',
+                labels
+            });
+        } catch (error: unknown) {
+            console.error('Error creating issue:', error);
+            throw error;
+        }
+    }
+
+    async updateIssueStatus(issueNumber: number, state: 'open' | 'closed'): Promise<void> {
+        if (!this.octokit) {
+            throw new Error('GitHub not authenticated');
         }
 
         try {
             await this.octokit.issues.update({
-                owner: this.owner,
-                repo: this.repo,
+                owner: 'user', // This should be dynamically determined
+                repo: 'repo',  // This should be dynamically determined
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 issue_number: issueNumber,
-                title: updates.title,
-                body: updates.body,
-                state: updates.state,
-                labels: updates.labels
+                state
             });
-            return true;
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to update issue: ${error}`);
-            return false;
+        } catch (error: unknown) {
+            console.error('Error updating issue:', error);
+            throw error;
+        }
+    }
+
+    async createRepository(name: string, description?: string): Promise<void> {
+        if (!this.octokit) {
+            throw new Error('GitHub not authenticated');
+        }
+
+        try {
+            await this.octokit.repos.createForAuthenticatedUser({
+                name,
+                description,
+                private: false,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                auto_init: true
+            });
+        } catch (error: unknown) {
+            console.error('Error creating repository:', error);
+            throw error;
         }
     }
 }

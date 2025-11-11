@@ -1,11 +1,37 @@
 import * as vscode from 'vscode';
 import { ProjectManager } from '../managers/ProjectManager';
+import { getNonce } from '../utils/getNonce';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
+
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, private projectManager: ProjectManager) {
+        this._panel = panel;
+        this._extensionUri = extensionUri;
+
+        this._update();
+
+        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+        this._panel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'refresh':
+                        this._update();
+                        return;
+                    case 'syncGitHub':
+                        this.projectManager.syncWithGitHub();
+                        this._update();
+                        return;
+                }
+            },
+            null,
+            this._disposables
+        );
+    }
 
     public static createOrShow(extensionUri: vscode.Uri, projectManager: ProjectManager) {
         const column = vscode.window.activeTextEditor
@@ -14,7 +40,6 @@ export class DashboardPanel {
 
         if (DashboardPanel.currentPanel) {
             DashboardPanel.currentPanel._panel.reveal(column);
-            DashboardPanel.currentPanel._update();
             return;
         }
 
@@ -24,47 +49,90 @@ export class DashboardPanel {
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(extensionUri, 'media'),
-                    vscode.Uri.joinPath(extensionUri, 'out')
-                ]
+                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
             }
         );
 
         DashboardPanel.currentPanel = new DashboardPanel(panel, extensionUri, projectManager);
     }
 
-    private constructor(
-        panel: vscode.WebviewPanel,
-        extensionUri: vscode.Uri,
-        private projectManager: ProjectManager
-    ) {
-        this._panel = panel;
-        this._extensionUri = extensionUri;
+    private async _update() {
+        const webview = this._panel.webview;
+        this._panel.title = 'Task Master Dashboard';
+        this._panel.webview.html = this._getHtmlForWebview(webview);
+    }
 
-        this._update();
+    private _getHtmlForWebview(webview: vscode.Webview) {
+        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.css'));
+        const nonce = getNonce();
 
-        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        const tasks = this.projectManager.getTasks();
+        const stats = {
+            totalTasks: tasks.length,
+            completedTasks: tasks.filter(t => t.status === 'completed').length,
+            inProgressTasks: tasks.filter(t => t.status === 'in-progress').length,
+            todoTasks: tasks.filter(t => t.status === 'todo').length
+        };
 
-        this._panel.webview.onDidReceiveMessage(
-            async message => {
-                switch (message.command) {
-                    case 'refreshData':
-                        this._update();
-                        break;
-                    case 'updateTask':
-                        // Handle task updates
-                        break;
-                    case 'syncGitHub':
-                        await this.projectManager.syncWithGitHub();
-                        this._update();
-                        break;
-                }
-            },
-            null,
-            this._disposables
-        );
+        return `<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+                <link href="${styleUri}" rel="stylesheet">
+                <title>Task Master Dashboard</title>
+            </head>
+            <body>
+                <div class="dashboard-container">
+                    <header>
+                        <h1>Task Master Dashboard</h1>
+                        <div class="actions">
+                            <button onclick="syncGitHub()">Sync with GitHub</button>
+                            <button onclick="refresh()">Refresh</button>
+                        </div>
+                    </header>
+                    
+                    <div class="stats">
+                        <div class="stat-card">
+                            <h3>Total Tasks</h3>
+                            <div class="stat-value">${stats.totalTasks}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Completed</h3>
+                            <div class="stat-value">${stats.completedTasks}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>In Progress</h3>
+                            <div class="stat-value">${stats.inProgressTasks}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>To Do</h3>
+                            <div class="stat-value">${stats.todoTasks}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-section">
+                        <h2>Overall Progress</h2>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks * 100) : 0}%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <script nonce="${nonce}">
+                    const vscode = acquireVsCodeApi();
+                    
+                    function syncGitHub() {
+                        vscode.postMessage({ command: 'syncGitHub' });
+                    }
+                    
+                    function refresh() {
+                        vscode.postMessage({ command: 'refresh' });
+                    }
+                </script>
+            </body>
+            </html>`;
     }
 
     public dispose() {
@@ -77,96 +145,4 @@ export class DashboardPanel {
             }
         }
     }
-
-    private _update() {
-        const webview = this._panel.webview;
-        const project = this.projectManager.getProject();
-        
-        this._panel.webview.html = this._getHtmlForWebview(webview);
-        
-        // Send project data to webview
-        if (project) {
-            this._panel.webview.postMessage({
-                command: 'loadProject',
-                project
-            });
-        }
-    }
-
-    private _getHtmlForWebview(webview: vscode.Webview) {
-        const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.js')
-        );
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.css')
-        );
-
-        const nonce = getNonce();
-
-        return `<!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <link href="${styleUri}" rel="stylesheet">
-                <title>Task Master Dashboard</title>
-            </head>
-            <body>
-                <div class="dashboard-container">
-                    <header>
-                        <h1>📊 Project Dashboard</h1>
-                        <div class="actions">
-                            <button id="refreshBtn">🔄 Refresh</button>
-                            <button id="syncBtn">🔗 Sync GitHub</button>
-                        </div>
-                    </header>
-
-                    <div class="stats">
-                        <div class="stat-card">
-                            <h3>Total Tasks</h3>
-                            <div class="stat-value" id="totalTasks">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Completed</h3>
-                            <div class="stat-value" id="completedTasks">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <h3>In Progress</h3>
-                            <div class="stat-value" id="inProgressTasks">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Progress</h3>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="progressBar"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tasks-section">
-                        <h2>Tasks Overview</h2>
-                        <div class="tasks-grid" id="tasksGrid">
-                            <!-- Tasks will be populated here -->
-                        </div>
-                    </div>
-
-                    <div class="chart-section">
-                        <h2>Project Analytics</h2>
-                        <canvas id="progressChart"></canvas>
-                    </div>
-                </div>
-
-                <script nonce="${nonce}" src="${scriptUri}"></script>
-            </body>
-            </html>`;
-    }
-}
-
-function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
 }

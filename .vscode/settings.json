@@ -1,0 +1,18 @@
+{
+    "files.exclude": {
+        "out": false,
+        "node_modules": true,
+        ".vscode-test": true
+    },
+    "search.exclude": {
+        "out": true,
+        "node_modules": true,
+        ".vscode-test": true
+    },
+    "typescript.tsc.autoDetect": "off",
+    "eslint.enable": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": true
+    }
+}

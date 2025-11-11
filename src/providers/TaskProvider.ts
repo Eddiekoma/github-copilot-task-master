@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ProjectManager } from '../managers/ProjectManager';
-import { Task } from '../services/AIService';
+import { Task } from '../types';
 
 export class TaskProvider implements vscode.TreeDataProvider<TaskItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<TaskItem | undefined | null | void> = new vscode.EventEmitter<TaskItem | undefined | null | void>();
@@ -21,9 +21,7 @@ export class TaskProvider implements vscode.TreeDataProvider<TaskItem> {
             const tasks = this.projectManager.getTasks();
             return Promise.resolve(
                 tasks.map(task => new TaskItem(
-                    task.title,
-                    task.description,
-                    task.priority,
+                    task,
                     vscode.TreeItemCollapsibleState.None
                 ))
             );
@@ -34,20 +32,24 @@ export class TaskProvider implements vscode.TreeDataProvider<TaskItem> {
 
 class TaskItem extends vscode.TreeItem {
     constructor(
-        public readonly label: string,
-        private description: string,
-        private priority: string,
+        public readonly task: Task,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
-        super(label, collapsibleState);
-        this.tooltip = `${this.label}: ${this.description}`;
-        this.description = `[${priority}]`;
+        super(task.title, collapsibleState);
+        
+        this.tooltip = `${task.title} - ${task.status}`;
+        this.description = task.status;
+        
+        // Set context value based on status
+        this.contextValue = task.status;
         
         // Set icon based on priority
-        this.iconPath = new vscode.ThemeIcon(
-            priority === 'high' ? 'flame' : 
-            priority === 'medium' ? 'circle-filled' : 
-            'circle-outline'
-        );
+        if (task.priority === 'high') {
+            this.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('testing.iconFailed'));
+        } else if (task.priority === 'medium') {
+            this.iconPath = new vscode.ThemeIcon('info');
+        } else {
+            this.iconPath = new vscode.ThemeIcon('circle-outline');
+        }
     }
 }
