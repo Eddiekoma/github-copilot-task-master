@@ -8,6 +8,7 @@ import { TaskBreakdownStep } from './steps/TaskBreakdownStep';
 import { ReviewStep } from './steps/ReviewStep';
 import { AIService } from '../services/AIService';
 import { ProjectFileService } from '../services/ProjectFileService';
+import { GitHubService } from '../services/GitHubService';
 
 /**
  * Orchestrates the multi-step wizard flow
@@ -41,6 +42,7 @@ export class WizardOrchestrator {
   private taskBreakdownStep: TaskBreakdownStep;
   private reviewStep: ReviewStep;
   private projectFileService: ProjectFileService;
+  private githubService: GitHubService;
 
   constructor(
     private context: vscode.ExtensionContext,
@@ -54,6 +56,7 @@ export class WizardOrchestrator {
     this.taskBreakdownStep = new TaskBreakdownStep(aiService);
     this.reviewStep = new ReviewStep(aiService);
     this.projectFileService = new ProjectFileService();
+    this.githubService = new GitHubService(context);
   }
 
   /**
@@ -177,7 +180,10 @@ export class WizardOrchestrator {
         'Project successfully created! GitHub issues will be created in the background.'
       );
       
-      // Trigger GitHub issue creation
+      // Create GitHub issues in background
+      this.createGitHubIssuesAsync(this.wizardData as ProjectFile);
+      
+      // Trigger completion
       this.webview.postMessage({
         command: 'wizardComplete',
         projectFile: this.wizardData
@@ -185,6 +191,56 @@ export class WizardOrchestrator {
     } catch (error) {
       console.error('Error completing wizard:', error);
       vscode.window.showErrorMessage(`Failed to complete wizard: ${error}`);
+    }
+  }
+
+  /**
+   * Create GitHub issues asynchronously
+   */
+  private async createGitHubIssuesAsync(projectFile: ProjectFile) {
+    try {
+      // Check if GitHub repo is configured
+      if (!projectFile.github?.repositoryUrl) {
+        console.log('No GitHub repository configured, skipping issue creation');
+        return;
+      }
+
+      // Parse and set repository
+      const success = this.githubService.parseAndSetRepository(projectFile.github.repositoryUrl);
+      if (!success) {
+        vscode.window.showWarningMessage('Invalid GitHub repository URL');
+        return;
+      }
+
+      vscode.window.showInformationMessage('Creating GitHub issues...');
+
+      // Create issues for all tasks
+      const issuePrefix = projectFile.github.issuePrefix || 'TASK-';
+      const taskToIssueMap = await this.githubService.createAIReadyIssues(
+        projectFile.tasks,
+        issuePrefix
+      );
+
+      // Update project file with issue numbers
+      projectFile.tasks.forEach(task => {
+        const issueNumber = taskToIssueMap.get(task.id);
+        if (issueNumber) {
+          task.githubIssueNumber = issueNumber;
+          task.githubIssueUrl = `${projectFile.github!.repositoryUrl}/issues/${issueNumber}`;
+        }
+      });
+
+      // Save updated project file
+      await this.projectFileService.saveProjectFile(projectFile);
+
+      vscode.window.showInformationMessage(
+        `Successfully created ${taskToIssueMap.size} GitHub issues!`
+      );
+    } catch (error) {
+      console.error('Error creating GitHub issues:', error);
+      vscode.window.showErrorMessage(
+        `Failed to create GitHub issues: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
