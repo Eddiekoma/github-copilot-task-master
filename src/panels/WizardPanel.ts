@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { ProjectManager } from '../managers/ProjectManager';
+import { WizardOrchestrator } from '../wizard/WizardOrchestrator';
+import { AIService } from '../services/AIService';
 import { getNonce } from '../utils/getNonce';
 
 export class WizardPanel {
@@ -7,8 +9,9 @@ export class WizardPanel {
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
+    private _orchestrator?: WizardOrchestrator;
 
-    public static createOrShow(extensionUri: vscode.Uri, projectManager: ProjectManager) {
+    public static createOrShow(extensionUri: vscode.Uri, projectManager: ProjectManager, context?: vscode.ExtensionContext) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -32,16 +35,27 @@ export class WizardPanel {
             }
         );
 
-        WizardPanel.currentPanel = new WizardPanel(panel, extensionUri, projectManager);
+        WizardPanel.currentPanel = new WizardPanel(panel, extensionUri, projectManager, context);
     }
 
     private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        private projectManager: ProjectManager
+        private projectManager: ProjectManager,
+        private context?: vscode.ExtensionContext
     ) {
         this._panel = panel;
         this._extensionUri = extensionUri;
+
+        // Initialize the orchestrator with AI service if context is available
+        if (context) {
+            const aiService = new AIService(context);
+            this._orchestrator = new WizardOrchestrator(
+                context,
+                panel.webview,
+                aiService
+            );
+        }
 
         this._update();
 
@@ -50,6 +64,24 @@ export class WizardPanel {
         this._panel.webview.onDidReceiveMessage(
             async message => {
                 switch (message.command) {
+                    case 'startWizard': {
+                        if (this._orchestrator) {
+                            await this._orchestrator.startWizard();
+                        }
+                        break;
+                    }
+                    case 'nextStep': {
+                        if (this._orchestrator) {
+                            await this._orchestrator.nextStep(message.data);
+                        }
+                        break;
+                    }
+                    case 'previousStep': {
+                        if (this._orchestrator) {
+                            await this._orchestrator.previousStep();
+                        }
+                        break;
+                    }
                     case 'generateRequirements': {
                         try {
                             console.log('[WizardPanel] Received generateRequirements command');

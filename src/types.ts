@@ -54,3 +54,6 @@ export interface ProjectData {
     githubRepo?: string;
     createGitHub?: boolean;
 }
+
+// Re-export project models
+export * from './types/projectModels';

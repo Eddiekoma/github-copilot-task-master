@@ -183,4 +183,49 @@ Return ONLY JSON array.`;
             return code;
         }
     }
+
+    /**
+     * Generic method to generate structured responses from Copilot
+     * Returns the parsed response or fallback value
+     */
+    async generateStructuredResponse<T>(prompt: string, fallback: T): Promise<T> {
+        console.log('[AIService] Generating structured response...');
+        
+        if (!await this.isCopilotAvailable()) {
+            console.warn('[AIService] Copilot not available, using fallback');
+            return fallback;
+        }
+
+        try {
+            const models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4' });
+            if (models.length === 0) {
+                console.warn('[AIService] No models available, using fallback');
+                return fallback;
+            }
+
+            const response = await models[0].sendRequest(
+                [vscode.LanguageModelChatMessage.User(prompt)],
+                {},
+                new vscode.CancellationTokenSource().token
+            );
+            
+            let fullResponse = '';
+            for await (const fragment of response.text) {
+                fullResponse += fragment;
+            }
+
+            console.log('[AIService] Response received, parsing...');
+            
+            // Try to extract JSON from response
+            const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/) || fullResponse.match(/```\s*([\s\S]*?)\s*```/);
+            const jsonString = jsonMatch ? jsonMatch[1] : fullResponse;
+            
+            const parsed = JSON.parse(jsonString.trim());
+            console.log('[AIService] Successfully parsed structured response');
+            return parsed as T;
+        } catch (error) {
+            console.error('[AIService] Error generating structured response:', error);
+            return fallback;
+        }
+    }
 }
